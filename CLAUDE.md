@@ -295,3 +295,36 @@ Da verificare/completare in produzione:
   `min-w-0`/`truncate` sui risultati (fix "esce fuori" dallo schermo).
 - **PWA**: `app/icon.tsx`+`apple-icon.tsx` (via next/og), `manifest.ts`, meta appleWebApp
   → "Aggiungi a schermata Home" con icona su iPhone e Android.
+
+## 🛠️ Sessione: fix salvataggio, velocità, ricerca economica, UX carte
+- **FIX salvataggio collezione/watchlist** (era rotto): al POST si ri-cercava la carta
+  per codice su tcgapi (che cerca solo per nome → 0 risultati → "non trovata"). Ora il
+  client passa i DATI CARTA (nome/set/prezzo/immagine) già ottenuti dalla ricerca nel
+  body; la route salva l'anagrafica senza ri-cercare. La watchlist ora garantisce
+  l'anagrafica come la collezione (prima violava la FK watchlist→carte).
+- **Velocità (aggiornamenti ottimistici)**: le modifiche (quantità/regole/rimozione)
+  aggiornano SUBITO lo stato locale e fanno PATCH/DELETE in background (niente più
+  `ricarica()` completo = 4 fetch dopo ogni azione); risincronizza solo se il server
+  rifiuta. Aggiunte fanno un solo fetch mirato. Totali collezione ricalcolati localmente.
+- **Costo tcgapi = per RICHIESTA, non per carta** (verificato su doc ufficiale + messaggio
+  d'errore dell'API "100 requests/day account-wide"). Quindi: ricerca alzata a **100
+  risultati in 1 richiesta**, ordinati per prezzo desc. ⚠️ ECCEZIONE: "Aggiorna prezzi"
+  fa 1 richiesta PER CARTA (deve ritrovare ogni prezzo) → con N carte = N richieste.
+- **Ricerca MANUALE** (bottone/Invio, no auto-live mentre digiti): 1 richiesta per
+  ricerca, per non bruciare il free tier (100/giorno). Vale collezione + watchlist.
+- **RisultatiRicerca** (componente condiviso): paginazione client 10/pagina con numeri
+  1-2-3…, filtro per rarità. Mostra codice/set/rarità/printing/prezzo.
+- **Collezione**: ricerca LOCALE tra le carte già inserite; di default mostra solo le
+  **TOP 5 per valore**, il resto appare cercando; click su immagine/nome → **CartaModal**
+  (pop-up con immagine grande + info + prezzo/valore).
+- **Inserimento MANUALE** (`InserisciManuale`): pop-up per aggiungere una carta a mano
+  (quando la ricerca non trova o il limite è esaurito). Nome+codice obbligatori, resto
+  opzionale; bottone (i) con guida + link (TCGPlayer/Cardmarket/sito ufficiale). Usa lo
+  stesso POST (che accetta `carta` nel body). In collezione e watchlist.
+- **Aggiorna prezzo SINGOLA carta**: `/api/collezione/prezzi?codice=...` + bottone
+  "💲 Prezzo" per carta (evita di risprecare richieste su carte già aggiornate).
+- **Watchlist**: rimosso selettore priorità (inutile); **limite 3 carte ATTIVE** insieme
+  (budget Apify), imposto lato server (POST aggiunge in pausa se già a 3; PATCH rifiuta
+  409) e lato UI (blocco toggle + avviso + contatore X/3).
+- ⚠️ **Persistenza**: le carte in collezione stanno su Supabase, NON su tcgapi → restano
+  visibili col loro prezzo anche a rate limit esaurito (il GET non chiama tcgapi).
