@@ -69,51 +69,62 @@ export async function GET() {
   return NextResponse.json({ collezione: arricchita, totale });
 }
 
-// POST → aggiunge/aggiorna una carta in collezione. Body: { codice, quantita?, note? }.
-// Se la carta non è ancora nel DB (tabella `carte`), la recuperiamo da tcgapi
-// (anagrafica + prezzo) e la salviamo PRIMA: la collezione ha una FK su carte, e
-// così l'utente aggiunge dalla ricerca live senza alcun pre-popolamento manuale.
+// Garantisce che la carta esista in anagrafica (`carte`), evitando la violazione
+// della FK. Preferisce i dati carta passati dal client (già disponibili dalla
+// ricerca live: nome, set, prezzo, immagine) — così NON serve ri-cercare per codice
+// su tcgapi (che cerca solo per nome → il codice esatto spesso non si trova).
+// Se il client non passa i dati, come fallback prova cartaPerCodice.
+// Ritorna true se la carta è disponibile in `carte`, false se impossibile.
+async function assicuraCarta(
+  sb: ReturnType<typeof supabaseAdmin>,
+  codice: string,
+  carta?: Partial<CartaLive>,
+): Promise<boolean> {
+  const { data: esistente } = await sb.from('carte').select('codice').eq('codice', codice).limit(1);
+  if (esistente?.length) return true;
+
+  // Dati dal client (preferiti) o fallback su tcgapi per codice.
+  let dati: CartaLive | null = null;
+  if (carta?.nome) {
+    dati = {
+      codice, nome: carta.nome, set: carta.set ?? '', rarita: carta.rarita ?? '',
+      printing: carta.printing ?? '', tipo: carta.tipo ?? '',
+      immagine_url: carta.immagine_url ?? '',
+      prezzo_usd: carta.prezzo_usd ?? null, prezzo_eur: carta.prezzo_eur ?? null,
+    };
+  } else {
+    try { dati = await cartaPerCodice(codice); } catch { dati = null; }
+  }
+  if (!dati) return false;
+
+  const { error: eCarta } = await sb.from('carte').upsert({
+    codice: dati.codice || codice, nome: dati.nome, set: dati.set, rarita: dati.rarita,
+    tipo: dati.tipo, immagine_url: dati.immagine_url, lingua: 'en',
+  });
+  if (eCarta) return false;
+  if (dati.prezzo_usd != null) {
+    await sb.from('prezzi_riferimento').insert({
+      codice, fonte: 'tcgapi', prezzo: dati.prezzo_usd, valuta: 'USD',
+    });
+  }
+  return true;
+}
+
+// POST → aggiunge/aggiorna una carta in collezione.
+// Body: { codice, quantita?, note?, carta? } dove `carta` sono i dati dalla ricerca
+// live (nome/set/prezzo/immagine): li usiamo per salvare l'anagrafica senza ri-cercare.
 export async function POST(req: Request) {
   const body = await req.json().catch(() => ({}));
   const codice = String(body.codice ?? '').trim().toUpperCase();
   if (!codice) return NextResponse.json({ error: 'codice mancante' }, { status: 400 });
 
   const sb = supabaseAdmin();
-
-  // La carta è già in anagrafica? Se no, prova a recuperarla live da tcgapi.
-  const { data: esistente } = await sb.from('carte').select('codice').eq('codice', codice).limit(1);
-  if (!esistente?.length) {
-    let live: CartaLive | null = null;
-    try {
-      live = await cartaPerCodice(codice);
-    } catch {
-      live = null;
-    }
-    if (!live) {
-      return NextResponse.json(
-        { error: `Carta ${codice} non trovata su tcgapi. Aggiungila cercandola per nome.` },
-        { status: 404 },
-      );
-    }
-    // Salva anagrafica (upsert su carte) + prezzo (in USD) nello storico.
-    const { error: eCarta } = await sb.from('carte').upsert({
-      codice: live.codice,
-      nome: live.nome,
-      set: live.set,
-      rarita: live.rarita,
-      tipo: live.tipo,
-      immagine_url: live.immagine_url,
-      lingua: 'en',
-    });
-    if (eCarta) return NextResponse.json({ error: eCarta.message }, { status: 500 });
-    if (live.prezzo_usd != null) {
-      await sb.from('prezzi_riferimento').insert({
-        codice: live.codice,
-        fonte: 'tcgapi',
-        prezzo: live.prezzo_usd,
-        valuta: 'USD',
-      });
-    }
+  const ok = await assicuraCarta(sb, codice, body.carta);
+  if (!ok) {
+    return NextResponse.json(
+      { error: `Impossibile salvare la carta ${codice}. Riprova selezionandola dalla ricerca.` },
+      { status: 404 },
+    );
   }
 
   const record = {

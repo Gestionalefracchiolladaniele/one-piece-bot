@@ -1,8 +1,8 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useClaupiece } from '@/lib/useClaupiece';
-import type { Carta, Watch } from '@/lib/types';
+import { useClaupiece, type CartaLive } from '@/lib/useClaupiece';
+import type { Watch } from '@/lib/types';
 
 const REGOLE: { key: Watch['regola_tipo']; label: string }[] = [
   { key: 'prezzo_max', label: 'Prezzo max (€)' },
@@ -12,21 +12,25 @@ const REGOLE: { key: Watch['regola_tipo']; label: string }[] = [
 
 export default function WatchlistPage() {
   const c = useClaupiece();
-  const { cercaCarte } = c;
+  const { cercaLive } = c;
   const [query, setQuery] = useState('');
-  const [risultati, setRisultati] = useState<Carta[]>([]);
+  const [risultati, setRisultati] = useState<CartaLive[]>([]);
+  const [cercando, setCercando] = useState(false);
 
-  // Ricerca carte nel DB (debounce leggero). Dipende SOLO da cercaCarte (stabile,
-  // useCallback) e query: NON dall'intero oggetto `c` (ricreato a ogni render →
-  // causerebbe un loop di effetti e bloccherebbe la UI).
+  // Ricerca LIVE su tcgapi (come la collezione): il DB `carte` è vuoto finché non
+  // aggiungi qualcosa, quindi la ricerca dev'essere live. Al POST la carta viene
+  // salvata in anagrafica. Dipende SOLO da cercaLive (stabile), NON dall'oggetto `c`.
   useEffect(() => {
     const q = query.trim();
-    if (!q) { setRisultati([]); return; }
+    if (!q) { setRisultati([]); setCercando(false); return; }
+    setCercando(true);
     const t = setTimeout(async () => {
-      try { setRisultati(await cercaCarte(q)); } catch { setRisultati([]); }
-    }, 250);
+      try { setRisultati(await cercaLive(q)); }
+      catch { setRisultati([]); }
+      finally { setCercando(false); }
+    }, 450);
     return () => clearTimeout(t);
-  }, [query, cercaCarte]);
+  }, [query, cercaLive]);
 
   return (
     <main className="mx-auto max-w-[960px] px-4 pt-6 pb-16 sm:px-5 sm:pt-8">
@@ -46,28 +50,40 @@ export default function WatchlistPage() {
 
       {/* Aggiungi carta */}
       <section className="card mb-6 p-4 sm:p-5">
-        <h2 className="mb-3 font-display text-base text-on-card-high sm:text-lg">➕ Aggiungi una carta</h2>
+        <h2 className="mb-1 font-display text-base text-on-card-high sm:text-lg">➕ Aggiungi una carta</h2>
+        <p className="mb-3 text-xs text-on-card-low">
+          Cerca per <strong>nome</strong> (es. Shanks, Luffy). La carta viene salvata in
+          anagrafica quando la aggiungi.
+        </p>
         <input
           className="field"
-          placeholder="Cerca per nome o codice (es. Shanks, OP01-120)…"
+          placeholder="Cerca per nome (es. Shanks, Luffy)…"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
         />
-        {query.trim() && risultati.length === 0 && (
-          <p className="mt-2.5 text-[13px] text-on-card-low">
-            Nessuna carta nel DB. (La watchlist cerca tra le carte già note: usa la Collezione
-            per importarne di nuove dalla ricerca live.)
-          </p>
+        {cercando && <p className="mt-2.5 text-[13px] text-on-card-low">Cerco…</p>}
+        {!cercando && query.trim().length >= 2 && risultati.length === 0 && (
+          <p className="mt-2.5 text-[13px] text-on-card-low">Nessuna carta trovata per “{query.trim()}”.</p>
         )}
         {risultati.length > 0 && (
           <ul className="mt-3 grid list-none gap-2 p-0">
             {risultati.map((card) => (
-              <li key={card.codice} className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-border-card px-2.5 py-2">
-                <span className="text-on-card-mid">
-                  <strong className="text-on-card-high">{card.nome || card.codice}</strong>{' '}
-                  <span className="text-xs">· {card.codice}{card.set ? ` · ${card.set}` : ''}</span>
+              <li key={`${card.codice}-${card.nome}`} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border-card p-2.5">
+                <span className="flex min-w-0 flex-1 items-center gap-2.5 text-on-card-mid">
+                  {card.immagine_url ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={card.immagine_url} alt={card.nome} width={38} height={53} className="shrink-0 rounded object-cover" />
+                  ) : null}
+                  <span className="min-w-0">
+                    <strong className="block truncate text-on-card-high">{card.nome || card.codice}</strong>
+                    <span className="block text-xs text-on-card-mid">{card.codice}{card.set ? ` · ${card.set}` : ''}</span>
+                    <span className="mt-0.5 flex flex-wrap items-center gap-1.5 text-[11px]">
+                      {card.rarita && <span className="badge">{card.rarita}</span>}
+                      {card.prezzo_usd != null && <span className="text-on-card-low">${card.prezzo_usd.toFixed(2)}</span>}
+                    </span>
+                  </span>
                 </span>
-                <button className="btn btn-accent btn-sm w-full sm:w-auto" onClick={() => { c.aggiungiWatch(card.codice); setQuery(''); }}>
+                <button className="btn btn-accent btn-sm w-full shrink-0 sm:w-auto" onClick={() => { c.aggiungiWatch(card.codice, card); setQuery(''); }}>
                   Aggiungi
                 </button>
               </li>

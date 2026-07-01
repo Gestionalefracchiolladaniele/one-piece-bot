@@ -108,7 +108,7 @@ export default function CollezionePage() {
                     </span>
                   </span>
                 </span>
-                <button className="btn btn-accent btn-sm w-full shrink-0 sm:w-auto" onClick={() => { c.aggiungiColl(card.codice); setQuery(''); }}>
+                <button className="btn btn-accent btn-sm w-full shrink-0 sm:w-auto" onClick={() => { c.aggiungiColl(card.codice, card); setQuery(''); }}>
                   + Colleziona
                 </button>
               </li>

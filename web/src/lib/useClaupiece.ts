@@ -74,11 +74,13 @@ export function useClaupiece() {
     return carte;
   }, []);
 
-  const aggiungiWatch = useCallback(async (codice: string) => {
+  // `carta` = dati dalla ricerca live, passati così la route salva l'anagrafica
+  // senza dover ri-cercare per codice su tcgapi (che cerca solo per nome).
+  const aggiungiWatch = useCallback(async (codice: string, carta?: CartaLive) => {
     await api('/api/watchlist', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ codice }),
+      body: JSON.stringify({ codice, carta }),
     });
     ricarica();
   }, [ricarica]);
@@ -104,11 +106,11 @@ export function useClaupiece() {
     return carte;
   }, []);
 
-  const aggiungiColl = useCallback(async (codice: string) => {
+  const aggiungiColl = useCallback(async (codice: string, carta?: CartaLive) => {
     await api('/api/collezione', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ codice }),
+      body: JSON.stringify({ codice, carta }),
     });
     ricarica();
   }, [ricarica]);
