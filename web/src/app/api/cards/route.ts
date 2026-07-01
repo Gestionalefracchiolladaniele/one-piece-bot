@@ -14,7 +14,7 @@ export async function GET(req: Request) {
   if (!q) return NextResponse.json({ carte: [] });
 
   if (live) {
-    const carte = await cercaLive(q, 20);
+    const carte = await cercaLive(q, 100);
     return NextResponse.json({ carte, live: true });
   }
 

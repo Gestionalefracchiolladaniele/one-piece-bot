@@ -66,7 +66,7 @@ async function rawSearch(q: string, perPage: number): Promise<CartaLive[]> {
 // comunque come testo (becca le carte che hanno il codice nel nome) e teniamo solo
 // il match esatto. Per nomi normali, ricerca testuale diretta ordinata per rilevanza.
 // Ritorna [] se la key manca o la chiamata fallisce (la UI mostra "nessun risultato").
-export async function cercaLive(q: string, perPage = 20): Promise<CartaLive[]> {
+export async function cercaLive(q: string, perPage = 100): Promise<CartaLive[]> {
   const query = q.trim();
   if (!env.tcgapiKey || query.length < 2) return [];
   try {
@@ -75,9 +75,11 @@ export async function cercaLive(q: string, perPage = 20): Promise<CartaLive[]> {
     if (RE_CODICE.test(query)) {
       const cod = query.toUpperCase();
       const esatte = risultati.filter((c) => c.codice === cod);
-      return esatte.length ? esatte : risultati;
+      if (esatte.length) return esatte;
     }
-    return risultati;
+    // Ordina per prezzo decrescente: le varianti più preziose (Alternate Art/rare)
+    // in cima. Il costo tcgapi è per RICHIESTA, non per carta → 100 risultati = 1 req.
+    return risultati.sort((a, b) => (b.prezzo_usd ?? 0) - (a.prezzo_usd ?? 0));
   } catch {
     return [];
   }

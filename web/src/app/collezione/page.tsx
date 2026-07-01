@@ -4,6 +4,7 @@ import { useMemo, useState } from 'react';
 import { useClaupiece, type CartaLive } from '@/lib/useClaupiece';
 import { AzioneBtn } from '@/components/AzioneBtn';
 import { CartaModal } from '@/components/CartaModal';
+import { RisultatiRicerca } from '@/components/RisultatiRicerca';
 import type { VoceCollezione } from '@/lib/types';
 
 const TOP_N = 5; // quante carte mostrare di default (le più preziose)
@@ -116,37 +117,11 @@ export default function CollezionePage() {
             (si azzera a mezzanotte UTC).
           </p>
         )}
-        {risultati.length > 0 && (
-          <ul className="mt-3 grid list-none gap-2 p-0">
-            {risultati.map((card) => (
-              <li key={`${card.codice}-${card.nome}`} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border-card p-2.5">
-                <span className="flex min-w-0 flex-1 items-center gap-2.5 text-on-card-mid">
-                  {card.immagine_url ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img src={card.immagine_url} alt={card.nome} width={38} height={53} className="shrink-0 rounded object-cover" />
-                  ) : null}
-                  <span className="min-w-0">
-                    <strong className="block truncate text-on-card-high">{card.nome || card.codice}</strong>
-                    <span className="block text-xs text-on-card-mid">
-                      {card.codice}
-                      {card.set ? ` · ${card.set}` : ''}
-                    </span>
-                    <span className="mt-0.5 flex flex-wrap items-center gap-1.5 text-[11px]">
-                      {card.rarita && <span className="badge">{card.rarita}</span>}
-                      {card.printing && card.printing !== 'Normal' && <span className="badge">{card.printing}</span>}
-                      {card.prezzo_usd != null && (
-                        <span className="text-on-card-low">${card.prezzo_usd.toFixed(2)} (~{card.prezzo_eur?.toFixed(2)}€)</span>
-                      )}
-                    </span>
-                  </span>
-                </span>
-                <button className="btn btn-accent btn-sm w-full shrink-0 sm:w-auto" onClick={() => { c.aggiungiColl(card.codice, card); setQuery(''); setRisultati([]); setCercato(false); }}>
-                  + Colleziona
-                </button>
-              </li>
-            ))}
-          </ul>
-        )}
+        <RisultatiRicerca
+          carte={risultati}
+          testoBottone="+ Colleziona"
+          onAggiungi={(card) => { c.aggiungiColl(card.codice, card); setQuery(''); setRisultati([]); setCercato(false); }}
+        />
       </section>
 
       {/* Lista collezione */}
