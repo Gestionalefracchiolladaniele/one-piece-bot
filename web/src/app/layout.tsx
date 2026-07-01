@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from 'next';
 import { Inter, Sora } from 'next/font/google';
 import { AuroraBackground } from '@/components/AuroraBackground';
+import { NavBar } from '@/components/NavBar';
 import './globals.css';
 
 // Font self-hosted via next/font (ottimizzato: niente <link> esterni, niente CLS).
@@ -36,7 +37,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="it" className={`${inter.variable} ${sora.variable}`}>
       <body>
         <AuroraBackground />
-        <div style={{ position: 'relative', zIndex: 1 }}>{children}</div>
+        <div style={{ position: 'relative', zIndex: 1 }}>
+          <NavBar />
+          {children}
+        </div>
       </body>
     </html>
   );

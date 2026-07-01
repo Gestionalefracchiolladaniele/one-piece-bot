@@ -17,4 +17,11 @@ export const env = {
   telegramWebhookSecret: process.env.TELEGRAM_WEBHOOK_SECRET ?? '',
   // URL pubblico della dashboard (per il comando /app).
   webAppUrl: process.env.NEXT_PUBLIC_WEB_APP_URL ?? process.env.WEB_APP_URL ?? '',
+  // GitHub — per avviare manualmente il cron Vinted (workflow_dispatch) dal bottone
+  // "Avvia caccia ora". Token con permesso 'actions:write' sul repo. Opzionale:
+  // se manca, il bottone mostra un avviso invece di lanciare.
+  githubToken: process.env.GITHUB_ACTIONS_TOKEN ?? '',
+  githubRepo: process.env.GITHUB_REPO ?? '', // es. "Gestionalefracchiolladaniele/one-piece-bot"
+  githubWorkflow: process.env.GITHUB_WORKFLOW_FILE ?? 'cron_runner.yml',
+  githubRef: process.env.GITHUB_REF_BRANCH ?? 'main',
 };

@@ -109,9 +109,13 @@ Dashboard su Vercel per gestire watchlist/regole/finestra e vedere gli ultimi af
 - **Layout mobile-first**: `page.tsx` usa classi Tailwind responsive (non più inline
   style fissi) — stack verticale sotto `sm:` (640px), select/bottoni full-width su
   mobile e affiancati da tablet in su, `viewport` con `width=device-width` in
-  `layout.tsx`. In `globals.css`: sotto 640px i `.field` forzano `font-size: 16px`
-  (evita lo zoom automatico di iOS Safari sul focus) e i `.btn` hanno `min-height: 40px`
-  (touch target). Provare sempre su viewport stretto (≤375px) dopo modifiche a `page.tsx`.
+  `layout.tsx`. Righe con più azioni (checkbox+rimuovi in watchlist, quantità+prezzo+
+  rimuovi in collezione, stelle+link in "Ultimi affari") sono raggruppate in un
+  sotto-flex `justify-between` dedicato invece di lasciarle tutte sullo stesso
+  flex-wrap della riga principale, per evitare che si affollino su schermi stretti.
+  In `globals.css`: sotto 640px i `.field` forzano `font-size: 16px` (evita lo zoom
+  automatico di iOS Safari sul focus) e i `.btn` hanno `min-height: 40px` (touch
+  target). Provare sempre su viewport stretto (≤375px) dopo modifiche a `page.tsx`.
 - `src/app/page.tsx` — dashboard (client): finestra oraria, ricerca+aggiungi carta,
   watchlist con regole inline, ultimi affari. Chiama le API route.
 - `src/app/api/*` — route server (service role, RLS deny-all): `watchlist` (GET/POST/
