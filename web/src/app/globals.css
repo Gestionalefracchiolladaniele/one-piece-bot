@@ -1,0 +1,233 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ──────────────────────────────────────────────────────────────────────────
+   Design tokens Claupiece — sfondo TENDENTE AL VIOLA (deep purple/violet).
+   Eredita l'impianto "aurora + particelle" da LinkedinGoat, riadattato: dal
+   nero luxury a un viola profondo, con accenti viola/magenta invece del bianco.
+   ────────────────────────────────────────────────────────────────────────── */
+:root {
+  /* backgrounds — deep purple/violet (non nero) */
+  --bg-deep: #0d0716;      /* viola-nero di base */
+  --bg-base: #140a24;      /* viola profondo */
+  --bg-elevated: #ffffff;  /* CARD BIANCHE (funzionali per l'uso) sopra il viola */
+  --bg-glass: rgba(167, 139, 250, 0.06);
+
+  /* text sul fondo viola (header, titoli fuori dalle card) */
+  --text-high: #f4f0ff;
+  --text-mid: rgba(244, 240, 255, 0.66);
+  --text-low: rgba(244, 240, 255, 0.4);
+
+  /* text DENTRO le card bianche (invertito: scuro su bianco) */
+  --on-card-high: #150a26;
+  --on-card-mid: rgba(21, 10, 38, 0.62);
+  --on-card-low: rgba(21, 10, 38, 0.42);
+
+  /* accenti viola/magenta */
+  --accent: #a78bfa;        /* violet-400 */
+  --accent-soft: #c4b5fd;   /* violet-300 */
+  --accent-strong: #7c3aed; /* violet-600 */
+  --gold: #f0b429;          /* per le stelle degli affari */
+  --alert: #ef4444;
+  --success: #34d399;
+
+  /* borders */
+  --border: rgba(167, 139, 250, 0.16);
+  --border-card: rgba(21, 10, 38, 0.08); /* bordo tenue sulle card bianche */
+
+  /* radii */
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-xl: 24px;
+  --radius-full: 9999px;
+
+  /* fonts (le var --font-inter/--font-sora arrivano da next/font in layout.tsx) */
+  --font-ui: var(--font-inter), system-ui, sans-serif;
+  --font-display: var(--font-sora), var(--font-inter), system-ui, sans-serif;
+
+  /* glow / ombre viola */
+  --glow-accent: 0 0 28px rgba(167, 139, 250, 0.28);
+  --shadow-card: 0 10px 34px rgba(10, 4, 22, 0.6);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  padding: 0;
+  margin: 0;
+  background: var(--bg-deep);
+  color: var(--text-high);
+  font-family: var(--font-ui);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+body {
+  min-height: 100dvh;
+}
+
+a {
+  color: inherit;
+}
+
+/* ── aurora viola: blob morbidi + particelle fluttuanti ── */
+@keyframes cp-aurora1 {
+  0%,
+  100% {
+    transform: translate(0, 0) scale(1);
+  }
+  50% {
+    transform: translate(8%, 6%) scale(1.15);
+  }
+}
+@keyframes cp-aurora2 {
+  0%,
+  100% {
+    transform: translate(0, 0) scale(1.1);
+  }
+  50% {
+    transform: translate(-7%, -5%) scale(0.95);
+  }
+}
+@keyframes cp-aurora3 {
+  0%,
+  100% {
+    transform: translate(0, 0) scale(1);
+  }
+  50% {
+    transform: translate(5%, -8%) scale(1.2);
+  }
+}
+@keyframes cp-particle {
+  0% {
+    transform: translateY(0) scale(1);
+    opacity: 0;
+  }
+  10% {
+    opacity: 0.7;
+  }
+  90% {
+    opacity: 0.5;
+  }
+  100% {
+    transform: translateY(-120vh) scale(1.4);
+    opacity: 0;
+  }
+}
+
+/* rispetta chi preferisce meno movimento */
+@media (prefers-reduced-motion: reduce) {
+  [data-aurora] * {
+    animation: none !important;
+  }
+}
+
+/* scrollbar sottili */
+.scroll-thin::-webkit-scrollbar {
+  width: 7px;
+}
+.scroll-thin::-webkit-scrollbar-thumb {
+  background: var(--border-card);
+  border-radius: 999px;
+}
+
+/* card BIANCA riutilizzabile (funzionale, testo scuro) sopra il fondo viola */
+.card {
+  background: var(--bg-elevated);
+  color: var(--on-card-high);
+  border: 1px solid var(--border-card);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-card);
+}
+
+/* ── bottoni ── */
+/* primario: bianco pieno con testo viola (spicca sul fondo viola) */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 10px 18px;
+  border-radius: var(--radius-full);
+  border: 1px solid transparent;
+  font-weight: 600;
+  font-size: 14px;
+  cursor: pointer;
+  transition: transform 0.08s ease, box-shadow 0.16s ease, background 0.16s ease;
+  text-decoration: none;
+}
+.btn:active {
+  transform: translateY(1px);
+}
+.btn-primary {
+  background: #ffffff;
+  color: var(--accent-strong);
+  box-shadow: var(--shadow-card);
+}
+.btn-primary:hover {
+  box-shadow: var(--glow-accent);
+}
+/* secondario: contorno chiaro su fondo viola (per azioni sul fondo scuro) */
+.btn-ghost {
+  background: var(--bg-glass);
+  color: var(--text-high);
+  border-color: var(--border);
+}
+.btn-ghost:hover {
+  background: rgba(167, 139, 250, 0.14);
+}
+/* dentro le card bianche: bottone viola pieno */
+.btn-accent {
+  background: var(--accent-strong);
+  color: #ffffff;
+}
+.btn-accent:hover {
+  background: var(--accent);
+}
+.btn-danger {
+  background: transparent;
+  color: var(--alert);
+  border-color: rgba(239, 68, 68, 0.4);
+}
+.btn-danger:hover {
+  background: rgba(239, 68, 68, 0.1);
+}
+.btn-sm {
+  padding: 6px 12px;
+  font-size: 13px;
+}
+
+/* ── input / select dentro le card bianche ── */
+.field {
+  width: 100%;
+  padding: 10px 14px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-card);
+  background: #f7f5fc;
+  color: var(--on-card-high);
+  font-size: 14px;
+  font-family: inherit;
+}
+.field:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(167, 139, 250, 0.22);
+}
+
+/* chip stelle / badge */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 10px;
+  border-radius: var(--radius-full);
+  font-size: 12px;
+  font-weight: 600;
+  background: rgba(124, 58, 237, 0.1);
+  color: var(--accent-strong);
+}

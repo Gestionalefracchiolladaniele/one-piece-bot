@@ -1,0 +1,27 @@
+# Redictra — file da NON committare
+
+# Segreti / ambiente
+.env
+.env.local
+*.env
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.mypy_cache/
+.pytest_cache/
+
+# Supabase
+.supabase/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+
+# Appunti/trascrizioni personali — non fanno parte del progetto
+sistemax

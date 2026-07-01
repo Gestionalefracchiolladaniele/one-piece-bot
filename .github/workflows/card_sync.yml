@@ -1,0 +1,57 @@
+# ============================================================================
+# Claupiece — Sync anagrafica + refresh riferimenti (GitHub Actions, SETTIMANALE)
+# ----------------------------------------------------------------------------
+# 1) Scarica punk-records (JSON raw, €0) → upsert `carte` (rileva set nuovi).
+# 2) Aggiorna i prezzi di RIFERIMENTO delle carte in watchlist (CardTrader se
+#    configurato, altrimenti Cardmarket via Apify). SETTIMANALE apposta: i
+#    riferimenti cambiano lento e ogni run Apify costa l'avvio → ~4 avvii/mese,
+#    costo trascurabile, budget Vinted intatto.
+#
+# Secret: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, APIFY_TOKEN (per Cardmarket),
+#         CARDTRADER_TOKEN (opz., preferito se presente), LINGUA_ANAGRAFICA (opz.).
+# ============================================================================
+
+name: Claupiece card sync
+
+on:
+  schedule:
+    - cron: "0 4 * * 1"    # ogni lunedì alle 04:00 UTC
+  workflow_dispatch:
+
+concurrency:
+  group: claupiece-card-sync
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Sync card database
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          LINGUA_ANAGRAFICA: ${{ secrets.LINGUA_ANAGRAFICA }}
+        run: python card_database.py
+
+      - name: Refresh reference prices (weekly)
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          APIFY_TOKEN: ${{ secrets.APIFY_TOKEN }}
+          CARDTRADER_TOKEN: ${{ secrets.CARDTRADER_TOKEN }}
+        run: python refresh_riferimenti.py

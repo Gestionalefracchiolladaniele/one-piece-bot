@@ -1,0 +1,17 @@
+# Claupiece — Dipendenze Python
+# Versioni pinnate (minor) per riproducibilità. Aggiornare con cautela.
+# Installazione: pip install -r requirements.txt
+
+# --- Gemini (Google GenAI: scoring a stelle degli affari, on-demand) ---
+google-genai==1.0.0
+
+# --- Telegram bot (invio notifiche affare al chat personale) ---
+python-telegram-bot==21.6
+
+# --- Supabase (DB via service role key) ---
+supabase==2.9.1
+
+# --- Utility ---
+requests==2.32.3              # chiamate HTTP (CardTrader/Apify usano anche urllib)
+python-dotenv==1.0.1          # caricamento .env in locale (in CI si usano i secret)
+tzdata                        # database fusi IANA per zoneinfo (necessario su Windows)

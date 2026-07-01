@@ -1,0 +1,63 @@
+# ============================================================================
+# Claupiece — Cron runner Vinted (GitHub Actions)
+# ----------------------------------------------------------------------------
+# Gira OGNI ORA (UTC). main.py all'avvio controlla se siamo nella FINESTRA ORARIA
+# attiva (config in DB / config.py): se no, esce in pochi secondi SENZA chiamare
+# Apify → zero costo. Se sì, legge Vinted (1 run batch), confronta col riferimento
+# CardTrader, applica la regola, dà le stelle (Gemini) e notifica gli affari.
+#
+# La finestra oraria NON è in questo file: è nel DB (tabella config) / config.py.
+# Il cron è una sveglia oraria fissa; è il codice a decidere quando lavorare.
+#
+# Secret del repository (Settings → Secrets and variables → Actions):
+#   SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY,
+#   TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID,
+#   APIFY_TOKEN (per leggere Vinted),
+#   CARDTRADER_TOKEN (prezzo di riferimento),
+#   GEMINI_API_KEY (scoring a stelle),
+#   TIMEZONE (opz., default Europe/Rome), FINESTRA_DEFAULT (opz.)
+# (vedi SETUP_TODO.md per come ottenerli)
+# ============================================================================
+
+name: Claupiece Vinted runner
+
+on:
+  schedule:
+    - cron: "0 * * * *"   # ogni ora, al minuto 0 (UTC)
+  workflow_dispatch:        # esecuzione manuale dalla UI di GitHub
+
+concurrency:
+  group: claupiece-vinted
+  cancel-in-progress: false
+
+jobs:
+  deal-hunt:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run deal hunt
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          APIFY_TOKEN: ${{ secrets.APIFY_TOKEN }}
+          CARDTRADER_TOKEN: ${{ secrets.CARDTRADER_TOKEN }}
+          TIMEZONE: ${{ secrets.TIMEZONE }}
+          FINESTRA_DEFAULT: ${{ secrets.FINESTRA_DEFAULT }}
+        run: python main.py
