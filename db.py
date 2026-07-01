@@ -292,3 +292,20 @@ def notifiche_in_pausa() -> bool:
 
 def imposta_pausa(in_pausa: bool) -> None:
     imposta_config({"in_pausa": in_pausa})
+
+
+def chat_id_autorizzati() -> list[str]:
+    """Chat id a cui inviare le notifiche: gli utenti entrati col deep link
+    (tabella utenti_bot) + sempre il proprietario (config.TELEGRAM_CHAT_ID).
+    Deduplicato. Se la tabella non esiste ancora, torna solo il proprietario."""
+    ids: list[str] = []
+    try:
+        rows = supabase().table("utenti_bot").select("chat_id").execute().data or []
+        ids = [str(r["chat_id"]) for r in rows if r.get("chat_id")]
+    except Exception:
+        ids = []
+    import config
+    if not config.manca(config.TELEGRAM_CHAT_ID):
+        ids.append(str(config.TELEGRAM_CHAT_ID))
+    # dedup mantenendo l'ordine
+    return list(dict.fromkeys(ids))

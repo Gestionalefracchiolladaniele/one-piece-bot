@@ -90,11 +90,28 @@ const KB_FINESTRA = {
   ],
 };
 
-// Solo il proprietario può usare il bot. Se TELEGRAM_CHAT_ID non è impostato,
-// lascia passare (setup iniziale), come nel vecchio bot_handler.py.
-function autorizzato(chatId: number | string): boolean {
+// Autorizzato se: è il proprietario (TELEGRAM_CHAT_ID) OPPURE è in utenti_bot
+// (entrato col deep link). Se TELEGRAM_CHAT_ID non è impostato, lascia passare (setup).
+async function autorizzato(chatId: number | string): Promise<boolean> {
   if (!env.telegramChatId) return true;
-  return String(chatId) === String(env.telegramChatId);
+  if (String(chatId) === String(env.telegramChatId)) return true;
+  try {
+    const { data } = await supabaseAdmin()
+      .from('utenti_bot')
+      .select('chat_id')
+      .eq('chat_id', String(chatId))
+      .limit(1);
+    return !!data?.length;
+  } catch {
+    return false;
+  }
+}
+
+// Registra un utente autorizzato (idempotente).
+async function registraUtente(chatId: number | string, nome: string) {
+  await supabaseAdmin()
+    .from('utenti_bot')
+    .upsert({ chat_id: String(chatId), nome }, { onConflict: 'chat_id' });
 }
 
 // ── Handler dei comandi ───────────────────────────────────────────────────────
@@ -238,13 +255,30 @@ export async function POST(req: Request) {
     // Messaggio testuale (comando).
     if (update.message?.text) {
       const chatId = update.message.chat.id;
-      if (autorizzato(chatId)) await gestisciComando(chatId, update.message.text);
+      const testo: string = update.message.text;
+      const from = update.message.from ?? {};
+      const nome = [from.first_name, from.last_name].filter(Boolean).join(' ') || from.username || '';
+
+      // /start CODICE → autorizzazione via deep link (funziona anche da NON autorizzato).
+      if (/^\/start(@\w+)?\s+/i.test(testo)) {
+        const codice = testo.trim().split(/\s+/)[1] ?? '';
+        if (env.botInviteCode && codice === env.botInviteCode) {
+          await registraUtente(chatId, nome);
+          await invia(chatId, `✅ Accesso attivato, ${nome || 'capitano'}! Ora puoi usare il bot.\n\n${TESTO_HELP}`);
+        } else {
+          await invia(chatId, '❌ Codice non valido. Chiedi il link d’invito corretto.');
+        }
+        return NextResponse.json({ ok: true });
+      }
+
+      if (await autorizzato(chatId)) await gestisciComando(chatId, testo);
+      else await invia(chatId, '🔒 Bot privato. Serve un link d’invito per usarlo.');
     }
     // Pressione di un bottone inline.
     else if (update.callback_query) {
       const cq = update.callback_query;
       const chatId = cq.message?.chat?.id;
-      if (chatId && autorizzato(chatId)) {
+      if (chatId && (await autorizzato(chatId))) {
         await gestisciCallback(chatId, cq.message.message_id, cq.id, cq.data ?? '');
       } else {
         await rispondiCallback(cq.id);

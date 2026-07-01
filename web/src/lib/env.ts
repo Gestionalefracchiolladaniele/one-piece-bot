@@ -15,6 +15,9 @@ export const env = {
   telegramChatId: process.env.TELEGRAM_CHAT_ID ?? '',
   // Secret condiviso col webhook Telegram (header X-Telegram-Bot-Api-Secret-Token).
   telegramWebhookSecret: process.env.TELEGRAM_WEBHOOK_SECRET ?? '',
+  // Codice del deep link t.me/Claupiecebot?start=CODICE: chi lo manda viene
+  // autorizzato (salvato in utenti_bot). Tienilo privato.
+  botInviteCode: process.env.BOT_INVITE_CODE ?? '',
   // URL pubblico della dashboard (per il comando /app).
   webAppUrl: process.env.NEXT_PUBLIC_WEB_APP_URL ?? process.env.WEB_APP_URL ?? '',
   // GitHub — per avviare manualmente il cron Vinted (workflow_dispatch) dal bottone

@@ -3,8 +3,10 @@
 Claupiece — Notifiche Telegram (canale PERSONALE).
 
 Quando il deal_finder trova un affare (e lo scorer gli ha dato le stelle), qui lo
-si formatta e lo si manda sul TUO chat Telegram (config.TELEGRAM_CHAT_ID). Non c'è
-onboarding né multi-utente: un solo destinatario, tu.
+si formatta e lo si manda su Telegram a TUTTI i destinatari autorizzati: il
+proprietario (config.TELEGRAM_CHAT_ID) + gli utenti entrati col deep link d'invito
+(tabella utenti_bot, vedi db.chat_id_autorizzati). Niente onboarding classico:
+l'accesso è via link t.me/Claupiecebot?start=CODICE gestito dal webhook.
 
 `componi_affare()` è codice puro (niente Telegram) → riusabile anche altrove (es.
 dashboard/preview). `invia_affare()` fa l'invio. Import di `telegram` LAZY, per
@@ -85,29 +87,37 @@ async def invia_affare(affare: dict, nome_carta: str = "",
 
 
 async def _invia_testo(testo: str, bot: "Optional[Bot]" = None) -> None:
-    """Invio grezzo di un testo al chat personale. Import telegram LAZY."""
+    """Invio grezzo di un testo a TUTTI i destinatari autorizzati: proprietario +
+    utenti entrati col deep link (db.chat_id_autorizzati). Import telegram LAZY."""
     from telegram import Bot
     from telegram.constants import ParseMode
     from telegram.error import TelegramError
 
-    if config.manca(config.TELEGRAM_CHAT_ID):
-        raise RuntimeError("TELEGRAM_CHAT_ID mancante (vedi SETUP_TODO.md).")
+    import db
+    destinatari = db.chat_id_autorizzati()
+    if not destinatari:
+        raise RuntimeError("Nessun destinatario (TELEGRAM_CHAT_ID mancante).")
 
     proprietario = bot is None
     if bot is None:
         bot = Bot(token=config.TELEGRAM_BOT_TOKEN)
     try:
-        try:
-            await bot.send_message(
-                chat_id=config.TELEGRAM_CHAT_ID, text=testo[:MAX_LEN_MSG],
-                parse_mode=ParseMode.MARKDOWN, disable_web_page_preview=False,
-            )
-        except TelegramError:
-            # Fallback senza Markdown (a volte i titoli rompono il parser).
-            await bot.send_message(
-                chat_id=config.TELEGRAM_CHAT_ID, text=testo[:MAX_LEN_MSG],
-                parse_mode=None,
-            )
+        for chat_id in destinatari:
+            try:
+                await bot.send_message(
+                    chat_id=chat_id, text=testo[:MAX_LEN_MSG],
+                    parse_mode=ParseMode.MARKDOWN, disable_web_page_preview=False,
+                )
+            except TelegramError:
+                # Fallback senza Markdown (a volte i titoli rompono il parser). Se
+                # anche questo fallisce (es. utente ha bloccato il bot), passa oltre:
+                # un destinatario problematico non deve bloccare gli altri.
+                try:
+                    await bot.send_message(
+                        chat_id=chat_id, text=testo[:MAX_LEN_MSG], parse_mode=None,
+                    )
+                except TelegramError:
+                    continue
     finally:
         if proprietario:
             try:

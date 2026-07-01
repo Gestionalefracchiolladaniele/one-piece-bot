@@ -94,6 +94,18 @@ create table if not exists collezione (
 );
 
 -- ----------------------------------------------------------------------------
+-- TABELLA: utenti_bot  (chi può usare il bot Telegram + ricevere le notifiche)
+-- Popolata via deep link: t.me/Claupiecebot?start=CODICE → /start CODICE salva qui
+-- il chat id. Il proprietario (TELEGRAM_CHAT_ID) è sempre autorizzato anche se non
+-- presente. Il notifier invia gli affari a TUTTI i chat id di questa tabella.
+-- ----------------------------------------------------------------------------
+create table if not exists utenti_bot (
+  chat_id     text primary key,          -- chat id Telegram (numerico, come testo)
+  nome        text not null default '',  -- nome/username per riferimento
+  created_at  timestamptz not null default now()
+);
+
+-- ----------------------------------------------------------------------------
 -- TABELLA: config  (impostazioni globali — 1 riga, id=1)
 -- ----------------------------------------------------------------------------
 create table if not exists config (
@@ -124,3 +136,4 @@ alter table annunci_visti       enable row level security;
 alter table affari              enable row level security;
 alter table collezione          enable row level security;
 alter table config              enable row level security;
+alter table utenti_bot          enable row level security;
