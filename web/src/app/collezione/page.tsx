@@ -1,8 +1,12 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useClaupiece, type CartaLive } from '@/lib/useClaupiece';
 import { AzioneBtn } from '@/components/AzioneBtn';
+import { CartaModal } from '@/components/CartaModal';
+import type { VoceCollezione } from '@/lib/types';
+
+const TOP_N = 5; // quante carte mostrare di default (le più preziose)
 
 export default function CollezionePage() {
   const c = useClaupiece();
@@ -11,6 +15,29 @@ export default function CollezionePage() {
   const [risultati, setRisultati] = useState<CartaLive[]>([]);
   const [cercando, setCercando] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
+  // Ricerca LOCALE tra le carte già in collezione (per nome/codice).
+  const [filtro, setFiltro] = useState('');
+  // Carta aperta nel pop-up di dettaglio.
+  const [dettaglio, setDettaglio] = useState<VoceCollezione | null>(null);
+
+  // Collezione ordinata per valore decrescente.
+  const ordinata = useMemo(
+    () => [...c.collezione].sort((a, b) => (b.valore_usd ?? 0) - (a.valore_usd ?? 0)),
+    [c.collezione],
+  );
+
+  // Cosa mostrare: se sto filtrando → tutte quelle che matchano; altrimenti solo le TOP_N.
+  const daMostrare = useMemo(() => {
+    const f = filtro.trim().toLowerCase();
+    if (f) {
+      return ordinata.filter(
+        (v) => (v.carta?.nome ?? '').toLowerCase().includes(f) || v.codice.toLowerCase().includes(f),
+      );
+    }
+    return ordinata.slice(0, TOP_N);
+  }, [ordinata, filtro]);
+
+  const nascoste = !filtro.trim() && ordinata.length > TOP_N ? ordinata.length - TOP_N : 0;
 
   // Ricerca LIVE su tcgapi: carte reali con prezzo, anche non ancora in DB.
   // Debounce più lungo per non sprecare il budget richieste (100/giorno).
@@ -119,24 +146,54 @@ export default function CollezionePage() {
 
       {/* Lista collezione */}
       <section>
-        <h2 className="mb-3 font-display text-lg text-text-high">Le mie carte ({c.collezione.length})</h2>
+        <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
+          <h2 className="font-display text-lg text-text-high">
+            {filtro.trim() ? `Risultati (${daMostrare.length})` : `Top ${TOP_N} più preziose`}
+          </h2>
+          <span className="text-xs text-text-low">{c.collezione.length} carte totali</span>
+        </div>
+
+        {/* Ricerca locale tra le carte già in collezione */}
+        {c.collezione.length > 0 && (
+          <input
+            className="field mb-3"
+            placeholder="🔍 Cerca nella tua collezione (nome o codice)…"
+            value={filtro}
+            onChange={(e) => setFiltro(e.target.value)}
+          />
+        )}
+
         {c.caricando ? (
           <p className="text-text-low">Carico…</p>
         ) : c.collezione.length === 0 ? (
           <div className="card p-5 text-on-card-mid">
             La collezione è vuota. Cerca una carta qui sopra e aggiungila: il valore stimato apparirà accanto.
           </div>
+        ) : daMostrare.length === 0 ? (
+          <div className="card p-5 text-on-card-mid">Nessuna carta trovata per “{filtro.trim()}”.</div>
         ) : (
           <div className="grid gap-3">
-            {c.collezione.map((v) => (
+            {daMostrare.map((v) => (
               <div key={v.codice} className="card p-4">
                 <div className="flex flex-wrap items-center gap-3">
                   {v.carta?.immagine_url ? (
                     // eslint-disable-next-line @next/next/no-img-element
-                    <img src={v.carta.immagine_url} alt={v.carta.nome} width={44} height={62} className="rounded-md object-cover" />
-                  ) : null}
+                    <img
+                      src={v.carta.immagine_url}
+                      alt={v.carta.nome}
+                      width={44}
+                      height={62}
+                      onClick={() => setDettaglio(v)}
+                      className="cursor-pointer rounded-md object-cover transition hover:ring-2 hover:ring-[color:var(--accent)]"
+                      title="Vedi dettaglio"
+                    />
+                  ) : (
+                    <button onClick={() => setDettaglio(v)} className="text-2xl" title="Vedi dettaglio">🃏</button>
+                  )}
                   <div className="min-w-[140px] flex-1">
-                    <div className="font-semibold text-on-card-high">{v.carta?.nome || v.codice}</div>
+                    <button onClick={() => setDettaglio(v)} className="text-left font-semibold text-on-card-high hover:underline">
+                      {v.carta?.nome || v.codice}
+                    </button>
                     <div className="text-xs text-on-card-low">{v.codice}{v.carta?.set ? ` · ${v.carta.set}` : ''}</div>
                   </div>
 
@@ -172,7 +229,16 @@ export default function CollezionePage() {
             ))}
           </div>
         )}
+
+        {nascoste > 0 && (
+          <p className="mt-3 text-center text-xs text-text-low">
+            +{nascoste} altre carte — usa la ricerca qui sopra per trovarle.
+          </p>
+        )}
       </section>
+
+      {/* Pop-up dettaglio carta */}
+      <CartaModal voce={dettaglio} onClose={() => setDettaglio(null)} />
     </main>
   );
 }

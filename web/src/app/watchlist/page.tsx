@@ -16,6 +16,7 @@ export default function WatchlistPage() {
   const [query, setQuery] = useState('');
   const [risultati, setRisultati] = useState<CartaLive[]>([]);
   const [cercando, setCercando] = useState(false);
+  const [avviso, setAvviso] = useState<string | null>(null);
 
   // Ricerca LIVE su tcgapi (come la collezione): il DB `carte` è vuoto finché non
   // aggiungi qualcosa, quindi la ricerca dev'essere live. Al POST la carta viene
@@ -32,19 +33,33 @@ export default function WatchlistPage() {
     return () => clearTimeout(t);
   }, [query, cercaLive]);
 
+  const MAX_ATTIVE = 3;
+  const attive = c.watchlist.filter((w) => w.attiva).length;
+
+  // Attiva/disattiva rispettando il limite (blocco lato UI + messaggio).
+  function toggleAttiva(codice: string, vuoiAttiva: boolean) {
+    if (vuoiAttiva && attive >= MAX_ATTIVE) {
+      setAvviso(`Massimo ${MAX_ATTIVE} carte attive. Metti in pausa un'altra carta prima.`);
+      return;
+    }
+    setAvviso(null);
+    c.aggiornaWatch(codice, { attiva: vuoiAttiva });
+  }
+
   return (
     <main className="mx-auto max-w-[960px] px-4 pt-6 pb-16 sm:px-5 sm:pt-8">
       <header className="mb-6">
         <h1 className="m-0 font-display text-[clamp(24px,6vw,36px)] tracking-tight">👀 Watchlist</h1>
         <p className="mt-1.5 max-w-[560px] text-sm text-text-mid">
           Le carte che il bot monitora su Vinted. Per ognuna imposti la <strong>regola</strong>
-          (quando è un affare), il paese e la priorità.
+          (quando è un affare) e il paese. Massimo <strong>{MAX_ATTIVE} attive</strong> insieme
+          (budget Apify).
         </p>
       </header>
 
-      {c.errore && (
+      {(c.errore || avviso) && (
         <div className="card mb-5 p-3.5 text-sm" style={{ borderColor: 'rgba(239,68,68,0.4)', color: 'var(--alert)' }}>
-          Errore: {c.errore}
+          {c.errore ? `Errore: ${c.errore}` : avviso}
         </div>
       )}
 
@@ -95,7 +110,9 @@ export default function WatchlistPage() {
       {/* Lista watchlist */}
       <section>
         <div className="mb-3 flex items-baseline justify-between">
-          <h2 className="font-display text-lg text-text-high">Monitorate ({c.watchlist.length})</h2>
+          <h2 className="font-display text-lg text-text-high">
+            Monitorate ({c.watchlist.length}) · <span className={attive >= MAX_ATTIVE ? 'text-[color:var(--gold)]' : ''}>{attive}/{MAX_ATTIVE} attive</span>
+          </h2>
           <button className="btn btn-ghost btn-sm" onClick={() => c.ricarica()}>🔄 Ricarica</button>
         </div>
         {c.caricando ? (
@@ -117,7 +134,7 @@ export default function WatchlistPage() {
                   </div>
                   <div className="flex w-full items-center justify-between gap-3 sm:w-auto sm:justify-start">
                     <label className="flex items-center gap-1.5 text-sm text-on-card-mid">
-                      <input type="checkbox" checked={w.attiva} onChange={(e) => c.aggiornaWatch(w.codice, { attiva: e.target.checked })} />
+                      <input type="checkbox" checked={w.attiva} onChange={(e) => toggleAttiva(w.codice, e.target.checked)} />
                       Attiva
                     </label>
                     <button className="btn btn-danger btn-sm" onClick={() => c.rimuoviWatch(w.codice)}>Rimuovi</button>
@@ -143,11 +160,6 @@ export default function WatchlistPage() {
                   <select className="field sm:max-w-[110px]" value={w.paese} onChange={(e) => c.aggiornaWatch(w.codice, { paese: e.target.value })}>
                     <option value="it">🇮🇹 IT</option>
                     <option value="eu">🇪🇺 EU</option>
-                  </select>
-                  <select className="field sm:max-w-[130px]" value={w.priorita} onChange={(e) => c.aggiornaWatch(w.codice, { priorita: e.target.value as Watch['priorita'] })}>
-                    <option value="vip">⭐ VIP</option>
-                    <option value="normale">Normale</option>
-                    <option value="bassa">Bassa</option>
                   </select>
                 </div>
               </div>

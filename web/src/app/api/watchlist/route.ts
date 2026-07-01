@@ -60,6 +60,15 @@ export async function GET() {
   return NextResponse.json({ watchlist: arricchita });
 }
 
+// Massimo carte ATTIVE contemporaneamente (budget Apify: la caccia gira su queste).
+const MAX_ATTIVE = 3;
+
+// Conta le carte attive, escludendo opzionalmente un codice (quello che sto per cambiare).
+async function contaAttive(sb: ReturnType<typeof supabaseAdmin>, esclusoCodice?: string): Promise<number> {
+  const { data } = await sb.from('watchlist').select('codice').eq('attiva', true);
+  return (data ?? []).filter((w) => w.codice !== esclusoCodice).length;
+}
+
 // POST → aggiunge (o aggiorna) una carta in watchlist. Body: { codice, ...campi }.
 export async function POST(req: Request) {
   const body = await req.json().catch(() => ({}));
@@ -67,8 +76,15 @@ export async function POST(req: Request) {
   if (!codice) return NextResponse.json({ error: 'codice mancante' }, { status: 400 });
 
   const sb = supabaseAdmin();
+  const cod = codice.toUpperCase();
+
+  // Nuove carte entrano ATTIVE per default: se saremmo già a MAX_ATTIVE, le aggiungiamo
+  // in PAUSA (attiva=false) invece di rifiutare, così l'utente la ritrova e può attivarla.
+  const attivaRichiesta = body.attiva ?? true;
+  const attiva = attivaRichiesta && (await contaAttive(sb, cod)) < MAX_ATTIVE;
+
   // Garantisce l'anagrafica (evita la violazione della FK watchlist→carte).
-  const ok = await assicuraCarta(sb, codice.toUpperCase(), body.carta);
+  const ok = await assicuraCarta(sb, cod, body.carta);
   if (!ok) {
     return NextResponse.json(
       { error: `Impossibile salvare la carta ${codice}. Riprova selezionandola dalla ricerca.` },
@@ -77,8 +93,8 @@ export async function POST(req: Request) {
   }
 
   const record = {
-    codice: codice.toUpperCase(),
-    attiva: body.attiva ?? true,
+    codice: cod,
+    attiva,
     priorita: body.priorita ?? 'normale',
     // Default prezzo_max: funziona senza CardTrader (perc_sconto richiede il riferimento).
     regola_tipo: body.regola_tipo ?? 'prezzo_max',
@@ -87,7 +103,7 @@ export async function POST(req: Request) {
   };
   const { error } = await sb.from('watchlist').upsert(record);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  return NextResponse.json({ ok: true });
+  return NextResponse.json({ ok: true, attiva, limite: !attiva && attivaRichiesta ? MAX_ATTIVE : undefined });
 }
 
 // PATCH → aggiorna i campi di una carta in watchlist. Body: { codice, ...campi }.
@@ -97,7 +113,19 @@ export async function PATCH(req: Request) {
   if (!codice) return NextResponse.json({ error: 'codice mancante' }, { status: 400 });
   const { codice: _c, carta: _carta, ...campi } = body;
   const sb = supabaseAdmin();
-  const { error } = await sb.from('watchlist').update(campi).eq('codice', codice);
+
+  // Se si sta ATTIVANDO la carta, rispetta il limite di MAX_ATTIVE.
+  if (campi.attiva === true) {
+    const attive = await contaAttive(sb, codice.toUpperCase());
+    if (attive >= MAX_ATTIVE) {
+      return NextResponse.json(
+        { error: `Puoi avere al massimo ${MAX_ATTIVE} carte attive. Metti in pausa un'altra carta prima.` },
+        { status: 409 },
+      );
+    }
+  }
+
+  const { error } = await sb.from('watchlist').update(campi).eq('codice', codice.toUpperCase());
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json({ ok: true });
 }
