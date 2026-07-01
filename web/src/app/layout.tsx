@@ -24,6 +24,13 @@ export const metadata: Metadata = {
   title: 'Claupiece — One Piece Card Tracker',
   description:
     'Monitora i prezzi delle carte One Piece TCG e ricevi un alert su Telegram quando compare un affare su Vinted.',
+  manifest: '/manifest.webmanifest',
+  // iPhone: apre a schermo intero quando aggiunta alla Home da Safari.
+  appleWebApp: {
+    capable: true,
+    title: 'Claupiece',
+    statusBarStyle: 'black-translucent',
+  },
 };
 
 export const viewport: Viewport = {
