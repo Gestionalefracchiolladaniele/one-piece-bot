@@ -74,6 +74,18 @@ export function useClaupiece() {
     return carte;
   }, []);
 
+  // Ricarica MIRATA: solo la watchlist / solo la collezione (non tutti e 4 i fetch),
+  // usata dopo un'aggiunta per riflettere l'anagrafica arricchita dal server.
+  const ricaricaWatch = useCallback(async () => {
+    const w = await api<{ watchlist: Watch[] }>('/api/watchlist');
+    setWatchlist(w.watchlist);
+  }, []);
+  const ricaricaColl = useCallback(async () => {
+    const col = await api<{ collezione: VoceCollezione[]; totale: TotaleCollezione }>('/api/collezione');
+    setCollezione(col.collezione);
+    setTotale(col.totale);
+  }, []);
+
   // `carta` = dati dalla ricerca live, passati così la route salva l'anagrafica
   // senza dover ri-cercare per codice su tcgapi (che cerca solo per nome).
   const aggiungiWatch = useCallback(async (codice: string, carta?: CartaLive) => {
@@ -82,22 +94,25 @@ export function useClaupiece() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ codice, carta }),
     });
-    ricarica();
-  }, [ricarica]);
+    ricaricaWatch(); // un solo fetch, non ricarica() completo
+  }, [ricaricaWatch]);
 
-  const aggiornaWatch = useCallback(async (codice: string, campi: Partial<Watch>) => {
-    await api('/api/watchlist', {
+  // Ottimistico: aggiorna subito lo stato locale (UI istantanea), poi PATCH in
+  // background. Se il server rifiuta, risincronizza dalla watchlist.
+  const aggiornaWatch = useCallback((codice: string, campi: Partial<Watch>) => {
+    setWatchlist((prev) => prev.map((w) => (w.codice === codice ? { ...w, ...campi } : w)));
+    api('/api/watchlist', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ codice, ...campi }),
-    });
-    ricarica();
-  }, [ricarica]);
+    }).catch(() => ricaricaWatch());
+  }, [ricaricaWatch]);
 
-  const rimuoviWatch = useCallback(async (codice: string) => {
-    await api(`/api/watchlist?codice=${encodeURIComponent(codice)}`, { method: 'DELETE' });
-    ricarica();
-  }, [ricarica]);
+  const rimuoviWatch = useCallback((codice: string) => {
+    setWatchlist((prev) => prev.filter((w) => w.codice !== codice)); // sparisce subito
+    api(`/api/watchlist?codice=${encodeURIComponent(codice)}`, { method: 'DELETE' })
+      .catch(() => ricaricaWatch());
+  }, [ricaricaWatch]);
 
   // ── Collezione (ricerca live tcgapi) ──
   const cercaLive = useCallback(async (q: string): Promise<CartaLive[]> => {
@@ -112,22 +127,48 @@ export function useClaupiece() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ codice, carta }),
     });
-    ricarica();
-  }, [ricarica]);
+    ricaricaColl(); // un solo fetch (serve per valore/totale ricalcolati dal server)
+  }, [ricaricaColl]);
 
-  const aggiornaColl = useCallback(async (codice: string, campi: Partial<VoceCollezione>) => {
-    await api('/api/collezione', {
+  // Ottimistico su quantità: aggiorna subito riga + totale localmente, poi PATCH.
+  const aggiornaColl = useCallback((codice: string, campi: Partial<VoceCollezione>) => {
+    setCollezione((prev) => {
+      const next = prev.map((v) => {
+        if (v.codice !== codice) return v;
+        const nv = { ...v, ...campi };
+        // ricalcola il valore riga se cambia la quantità (prezzo unitario invariato)
+        if (campi.quantita != null && nv.prezzo_usd != null) {
+          nv.valore_usd = Math.round(nv.prezzo_usd * nv.quantita * 100) / 100;
+          nv.valore_eur = nv.prezzo_eur != null ? Math.round(nv.prezzo_eur * nv.quantita * 100) / 100 : null;
+        }
+        return nv;
+      });
+      // ricalcola i totali dallo stato aggiornato
+      const pezzi = next.reduce((s, v) => s + v.quantita, 0);
+      const usd = Math.round(next.reduce((s, v) => s + (v.valore_usd ?? 0), 0) * 100) / 100;
+      const eur = Math.round(next.reduce((s, v) => s + (v.valore_eur ?? 0), 0) * 100) / 100;
+      setTotale({ pezzi, usd, eur });
+      return next;
+    });
+    api('/api/collezione', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ codice, ...campi }),
-    });
-    ricarica();
-  }, [ricarica]);
+    }).catch(() => ricaricaColl());
+  }, [ricaricaColl]);
 
-  const rimuoviColl = useCallback(async (codice: string) => {
-    await api(`/api/collezione?codice=${encodeURIComponent(codice)}`, { method: 'DELETE' });
-    ricarica();
-  }, [ricarica]);
+  const rimuoviColl = useCallback((codice: string) => {
+    setCollezione((prev) => {
+      const next = prev.filter((v) => v.codice !== codice);
+      const pezzi = next.reduce((s, v) => s + v.quantita, 0);
+      const usd = Math.round(next.reduce((s, v) => s + (v.valore_usd ?? 0), 0) * 100) / 100;
+      const eur = Math.round(next.reduce((s, v) => s + (v.valore_eur ?? 0), 0) * 100) / 100;
+      setTotale({ pezzi, usd, eur });
+      return next;
+    });
+    api(`/api/collezione?codice=${encodeURIComponent(codice)}`, { method: 'DELETE' })
+      .catch(() => ricaricaColl());
+  }, [ricaricaColl]);
 
   // ── Config / finestra ──
   const salvaFinestra = useCallback(async (nuovoInizio: number, nuovaFine: number) => {
@@ -155,9 +196,9 @@ export function useClaupiece() {
     const r = await api<{ aggiornate: number; totali: number }>('/api/collezione/prezzi', {
       method: 'POST',
     });
-    ricarica();
+    await ricaricaColl();
     return `Prezzi aggiornati: ${r.aggiornate}/${r.totali} carte.`;
-  }, [ricarica]);
+  }, [ricaricaColl]);
 
   const avviaCaccia = useCallback(async (): Promise<string> => {
     const r = await api<{ ok: boolean; msg: string }>('/api/actions', {
