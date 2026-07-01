@@ -12,18 +12,21 @@ const REGOLE: { key: Watch['regola_tipo']; label: string }[] = [
 
 export default function WatchlistPage() {
   const c = useClaupiece();
+  const { cercaCarte } = c;
   const [query, setQuery] = useState('');
   const [risultati, setRisultati] = useState<Carta[]>([]);
 
-  // Ricerca carte nel DB (debounce leggero).
+  // Ricerca carte nel DB (debounce leggero). Dipende SOLO da cercaCarte (stabile,
+  // useCallback) e query: NON dall'intero oggetto `c` (ricreato a ogni render →
+  // causerebbe un loop di effetti e bloccherebbe la UI).
   useEffect(() => {
     const q = query.trim();
     if (!q) { setRisultati([]); return; }
     const t = setTimeout(async () => {
-      try { setRisultati(await c.cercaCarte(q)); } catch { setRisultati([]); }
+      try { setRisultati(await cercaCarte(q)); } catch { setRisultati([]); }
     }, 250);
     return () => clearTimeout(t);
-  }, [query, c]);
+  }, [query, cercaCarte]);
 
   return (
     <main className="mx-auto max-w-[960px] px-4 pt-6 pb-16 sm:px-5 sm:pt-8">

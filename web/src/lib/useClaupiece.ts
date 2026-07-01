@@ -13,6 +13,7 @@ export type CartaLive = {
   nome: string;
   set: string;
   rarita: string;
+  printing: string;
   tipo: string;
   immagine_url: string;
   prezzo_usd: number | null;

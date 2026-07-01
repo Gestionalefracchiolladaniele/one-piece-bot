@@ -6,6 +6,7 @@ import { AzioneBtn } from '@/components/AzioneBtn';
 
 export default function CollezionePage() {
   const c = useClaupiece();
+  const { cercaLive } = c;
   const [query, setQuery] = useState('');
   const [risultati, setRisultati] = useState<CartaLive[]>([]);
   const [cercando, setCercando] = useState(false);
@@ -13,17 +14,18 @@ export default function CollezionePage() {
 
   // Ricerca LIVE su tcgapi: carte reali con prezzo, anche non ancora in DB.
   // Debounce più lungo per non sprecare il budget richieste (100/giorno).
+  // Dipende SOLO da cercaLive (stabile) e query: NON dall'intero `c` (loop).
   useEffect(() => {
     const q = query.trim();
     if (!q) { setRisultati([]); setCercando(false); return; }
     setCercando(true);
     const t = setTimeout(async () => {
-      try { setRisultati(await c.cercaLive(q)); }
+      try { setRisultati(await cercaLive(q)); }
       catch { setRisultati([]); }
       finally { setCercando(false); }
     }, 450);
     return () => clearTimeout(t);
-  }, [query, c]);
+  }, [query, cercaLive]);
 
   return (
     <main className="mx-auto max-w-[960px] px-4 pt-6 pb-16 sm:px-5 sm:pt-8">
@@ -64,35 +66,49 @@ export default function CollezionePage() {
 
       {/* Aggiungi alla collezione (ricerca live) */}
       <section className="card mb-6 p-4 sm:p-5">
-        <h2 className="mb-3 font-display text-base text-on-card-high sm:text-lg">➕ Aggiungi una carta</h2>
+        <h2 className="mb-1 font-display text-base text-on-card-high sm:text-lg">➕ Aggiungi una carta</h2>
+        <p className="mb-3 text-xs text-on-card-low">
+          Cerca per <strong>nome</strong> (es. Zoro, Luffy). Ogni risultato mostra codice, set e
+          rarità: scegli la variante giusta. La ricerca per codice esatto non è sempre supportata
+          dalla fonte prezzi.
+        </p>
         <input
           className="field"
-          placeholder="Cerca per nome (es. Zoro) o codice (es. OP01-025)…"
+          placeholder="Cerca per nome (es. Zoro, Nami, Luffy)…"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
         />
         {cercando && <p className="mt-2.5 text-[13px] text-on-card-low">Cerco…</p>}
-        {!cercando && query.trim() && risultati.length === 0 && (
-          <p className="mt-2.5 text-[13px] text-on-card-low">Nessuna carta trovata.</p>
+        {!cercando && query.trim().length >= 2 && risultati.length === 0 && (
+          <p className="mt-2.5 text-[13px] text-on-card-low">
+            Nessuna carta trovata per “{query.trim()}”. Prova solo il nome del personaggio.
+          </p>
         )}
         {risultati.length > 0 && (
           <ul className="mt-3 grid list-none gap-2 p-0">
             {risultati.map((card) => (
-              <li key={`${card.codice}-${card.nome}`} className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-border-card px-2.5 py-2">
-                <span className="flex items-center gap-2.5 text-on-card-mid">
+              <li key={`${card.codice}-${card.nome}`} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border-card p-2.5">
+                <span className="flex min-w-0 flex-1 items-center gap-2.5 text-on-card-mid">
                   {card.immagine_url ? (
                     // eslint-disable-next-line @next/next/no-img-element
-                    <img src={card.immagine_url} alt={card.nome} width={30} height={42} className="rounded object-cover" />
+                    <img src={card.immagine_url} alt={card.nome} width={38} height={53} className="shrink-0 rounded object-cover" />
                   ) : null}
-                  <span>
-                    <strong className="text-on-card-high">{card.nome || card.codice}</strong>{' '}
-                    <span className="text-xs">· {card.codice}{card.set ? ` · ${card.set}` : ''}</span>
-                    {card.prezzo_usd != null && (
-                      <span className="block text-xs text-on-card-low">${card.prezzo_usd.toFixed(2)} (~{card.prezzo_eur?.toFixed(2)}€)</span>
-                    )}
+                  <span className="min-w-0">
+                    <strong className="block truncate text-on-card-high">{card.nome || card.codice}</strong>
+                    <span className="block text-xs text-on-card-mid">
+                      {card.codice}
+                      {card.set ? ` · ${card.set}` : ''}
+                    </span>
+                    <span className="mt-0.5 flex flex-wrap items-center gap-1.5 text-[11px]">
+                      {card.rarita && <span className="badge">{card.rarita}</span>}
+                      {card.printing && card.printing !== 'Normal' && <span className="badge">{card.printing}</span>}
+                      {card.prezzo_usd != null && (
+                        <span className="text-on-card-low">${card.prezzo_usd.toFixed(2)} (~{card.prezzo_eur?.toFixed(2)}€)</span>
+                      )}
+                    </span>
                   </span>
                 </span>
-                <button className="btn btn-accent btn-sm w-full sm:w-auto" onClick={() => { c.aggiungiColl(card.codice); setQuery(''); }}>
+                <button className="btn btn-accent btn-sm w-full shrink-0 sm:w-auto" onClick={() => { c.aggiungiColl(card.codice); setQuery(''); }}>
                   + Colleziona
                 </button>
               </li>

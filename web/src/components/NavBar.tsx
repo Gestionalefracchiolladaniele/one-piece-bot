@@ -16,8 +16,8 @@ export function NavBar() {
   const path = usePathname();
   return (
     <header className="sticky top-0 z-20 border-b border-border bg-[rgba(13,7,22,0.72)] backdrop-blur-md">
-      <nav className="mx-auto flex max-w-[960px] items-center justify-between gap-3 px-4 py-3 sm:px-5">
-        <Link href="/" className="flex items-center gap-2 font-display text-lg tracking-tight text-text-high">
+      <nav className="mx-auto flex max-w-[960px] items-center justify-between gap-2 px-3 py-2.5 sm:gap-3 sm:px-5 sm:py-3">
+        <Link href="/" className="flex shrink-0 items-center gap-2 font-display text-lg tracking-tight text-text-high">
           <span>🏴‍☠️</span>
           <span className="hidden sm:inline">Claupiece</span>
         </Link>
@@ -28,14 +28,15 @@ export function NavBar() {
               <li key={l.href}>
                 <Link
                   href={l.href}
-                  className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-semibold transition ${
+                  aria-label={l.label}
+                  className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1.5 text-sm font-semibold transition sm:px-3 ${
                     attivo
                       ? 'bg-white text-[color:var(--accent-strong)] shadow'
                       : 'text-text-mid hover:bg-[rgba(167,139,250,0.14)] hover:text-text-high'
                   }`}
                 >
                   <span>{l.emoji}</span>
-                  <span>{l.label}</span>
+                  <span className="hidden min-[420px]:inline">{l.label}</span>
                 </Link>
               </li>
             );

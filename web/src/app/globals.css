@@ -65,6 +65,14 @@ body {
   font-family: var(--font-ui);
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
+  /* niente scroll orizzontale su mobile: nessun figlio deve "uscire fuori" */
+  overflow-x: hidden;
+  max-width: 100%;
+}
+
+/* le immagini non superano mai la larghezza del viewport (anti-overflow mobile) */
+img {
+  max-width: 100%;
 }
 
 body {
