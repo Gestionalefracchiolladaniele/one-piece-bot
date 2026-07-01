@@ -2,15 +2,22 @@ import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
 import { cartaPerCodice } from '@/lib/tcgapi';
 
-// POST /api/collezione/prezzi → rilegge i prezzi tcgapi (USD) delle carte in
-// collezione e li salva nello storico. Attenzione al budget tcgapi (100 req/giorno):
-// una chiamata per carta, quindi va usato con parsimonia (bottone manuale, non auto).
-export async function POST() {
+// POST /api/collezione/prezzi        → aggiorna TUTTE le carte in collezione.
+// POST /api/collezione/prezzi?codice=OP01-025 → aggiorna SOLO quella carta.
+// Rilegge i prezzi tcgapi (USD) e li salva nello storico. 1 richiesta tcgapi per
+// carta → il singolo evita di risprecare richieste su carte già aggiornate.
+export async function POST(req: Request) {
   const sb = supabaseAdmin();
-  const { data: coll, error } = await sb.from('collezione').select('codice');
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  const solo = new URL(req.url).searchParams.get('codice')?.trim().toUpperCase();
 
-  const codici = (coll ?? []).map((c) => c.codice);
+  let codici: string[];
+  if (solo) {
+    codici = [solo];
+  } else {
+    const { data: coll, error } = await sb.from('collezione').select('codice');
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    codici = (coll ?? []).map((c) => c.codice);
+  }
   if (!codici.length) return NextResponse.json({ aggiornate: 0, totali: 0 });
 
   let aggiornate = 0;

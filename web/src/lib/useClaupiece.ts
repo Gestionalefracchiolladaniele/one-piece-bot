@@ -121,11 +121,11 @@ export function useClaupiece() {
     return carte;
   }, []);
 
-  const aggiungiColl = useCallback(async (codice: string, carta?: CartaLive) => {
+  const aggiungiColl = useCallback(async (codice: string, carta?: CartaLive, quantita?: number) => {
     await api('/api/collezione', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ codice, carta }),
+      body: JSON.stringify({ codice, carta, quantita }),
     });
     ricaricaColl(); // un solo fetch (serve per valore/totale ricalcolati dal server)
   }, [ricaricaColl]);
@@ -200,6 +200,17 @@ export function useClaupiece() {
     return `Prezzi aggiornati: ${r.aggiornate}/${r.totali} carte.`;
   }, [ricaricaColl]);
 
+  // Aggiorna il prezzo di UNA sola carta (1 richiesta tcgapi) — evita di risprecare
+  // richieste su carte già aggiornate.
+  const aggiornaPrezzoCarta = useCallback(async (codice: string): Promise<string> => {
+    const r = await api<{ aggiornate: number }>(
+      `/api/collezione/prezzi?codice=${encodeURIComponent(codice)}`,
+      { method: 'POST' },
+    );
+    await ricaricaColl();
+    return r.aggiornate ? `Prezzo di ${codice} aggiornato.` : `Nessun prezzo trovato per ${codice}.`;
+  }, [ricaricaColl]);
+
   const avviaCaccia = useCallback(async (): Promise<string> => {
     const r = await api<{ ok: boolean; msg: string }>('/api/actions', {
       method: 'POST',
@@ -225,7 +236,7 @@ export function useClaupiece() {
     ricarica, cercaCarte, aggiungiWatch, aggiornaWatch, rimuoviWatch,
     cercaLive, aggiungiColl, aggiornaColl, rimuoviColl,
     salvaFinestra, togglePausa,
-    aggiornaPrezziColl, avviaCaccia, inviaRiepilogo,
+    aggiornaPrezziColl, aggiornaPrezzoCarta, avviaCaccia, inviaRiepilogo,
   };
 }
 

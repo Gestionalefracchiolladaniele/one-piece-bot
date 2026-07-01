@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useClaupiece, type CartaLive } from '@/lib/useClaupiece';
 import { RisultatiRicerca } from '@/components/RisultatiRicerca';
+import { InserisciManuale } from '@/components/InserisciManuale';
 import type { Watch } from '@/lib/types';
 
 const REGOLE: { key: Watch['regola_tipo']; label: string }[] = [
@@ -19,6 +20,7 @@ export default function WatchlistPage() {
   const [cercando, setCercando] = useState(false);
   const [cercato, setCercato] = useState(false);
   const [avviso, setAvviso] = useState<string | null>(null);
+  const [manuale, setManuale] = useState(false);
 
   // Ricerca MANUALE su tcgapi (bottone/Invio): 1 sola richiesta, per non bruciare il
   // free tier (100 req/giorno). La carta viene salvata in anagrafica al POST.
@@ -84,10 +86,15 @@ export default function WatchlistPage() {
         </div>
         {!cercando && cercato && risultati.length === 0 && (
           <p className="mt-2.5 text-[13px] text-on-card-low">
-            Nessuna carta trovata per “{query.trim()}”. Prova solo il nome. Se non appare nulla
-            per nessuna ricerca, può essere finito il limite giornaliero (si azzera a mezzanotte UTC).
+            Nessuna carta trovata per “{query.trim()}”. Prova solo il nome, oppure
+            <button onClick={() => setManuale(true)} className="ml-1 font-semibold text-[color:var(--accent-strong)] underline">
+              inseriscila a mano
+            </button>.
           </p>
         )}
+        <button onClick={() => setManuale(true)} className="mt-2.5 text-[13px] font-semibold text-[color:var(--accent-strong)]">
+          ✍️ Inserisci una carta a mano
+        </button>
         <RisultatiRicerca
           carte={risultati}
           testoBottone="Aggiungi"
@@ -155,6 +162,17 @@ export default function WatchlistPage() {
           </div>
         )}
       </section>
+
+      {/* Pop-up inserimento manuale */}
+      <InserisciManuale
+        aperto={manuale}
+        onChiudi={() => setManuale(false)}
+        titolo="✍️ Aggiungi carta a mano"
+        onSalva={(carta) => {
+          c.aggiungiWatch(carta.codice, carta);
+          setManuale(false);
+        }}
+      />
     </main>
   );
 }

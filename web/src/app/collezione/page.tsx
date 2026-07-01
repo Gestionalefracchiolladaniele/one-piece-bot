@@ -5,6 +5,7 @@ import { useClaupiece, type CartaLive } from '@/lib/useClaupiece';
 import { AzioneBtn } from '@/components/AzioneBtn';
 import { CartaModal } from '@/components/CartaModal';
 import { RisultatiRicerca } from '@/components/RisultatiRicerca';
+import { InserisciManuale } from '@/components/InserisciManuale';
 import type { VoceCollezione } from '@/lib/types';
 
 const TOP_N = 5; // quante carte mostrare di default (le più preziose)
@@ -17,6 +18,7 @@ export default function CollezionePage() {
   const [cercando, setCercando] = useState(false);
   const [cercato, setCercato] = useState(false); // true dopo la prima ricerca (per il "nessun risultato")
   const [msg, setMsg] = useState<string | null>(null);
+  const [manuale, setManuale] = useState(false); // pop-up inserimento manuale
   // Ricerca LOCALE tra le carte già in collezione (per nome/codice).
   const [filtro, setFiltro] = useState('');
   // Carta aperta nel pop-up di dettaglio.
@@ -112,11 +114,16 @@ export default function CollezionePage() {
         </div>
         {!cercando && cercato && risultati.length === 0 && (
           <p className="mt-2.5 text-[13px] text-on-card-low">
-            Nessuna carta trovata per “{query.trim()}”. Prova solo il nome (es. Luffy). Se non
-            appare nulla per nessuna ricerca, potrebbe essere finito il limite giornaliero
-            (si azzera a mezzanotte UTC).
+            Nessuna carta trovata per “{query.trim()}”. Prova solo il nome (es. Luffy), oppure
+            <button onClick={() => setManuale(true)} className="ml-1 font-semibold text-[color:var(--accent-strong)] underline">
+              inseriscila a mano
+            </button>.
           </p>
         )}
+        {/* Inserimento manuale: sempre disponibile come alternativa alla ricerca */}
+        <button onClick={() => setManuale(true)} className="mt-2.5 text-[13px] font-semibold text-[color:var(--accent-strong)]">
+          ✍️ Inserisci una carta a mano
+        </button>
         <RisultatiRicerca
           carte={risultati}
           testoBottone="+ Colleziona"
@@ -203,7 +210,16 @@ export default function CollezionePage() {
                     </div>
                   </div>
 
-                  <button className="btn btn-danger btn-sm w-full sm:w-auto" onClick={() => c.rimuoviColl(v.codice)}>Rimuovi</button>
+                  <div className="flex w-full gap-2 sm:w-auto">
+                    <AzioneBtn
+                      className="btn btn-sm flex-1 sm:flex-none"
+                      onClick={() => c.aggiornaPrezzoCarta(v.codice)}
+                      onEsito={setMsg}
+                    >
+                      💲 Prezzo
+                    </AzioneBtn>
+                    <button className="btn btn-danger btn-sm flex-1 sm:flex-none" onClick={() => c.rimuoviColl(v.codice)}>Rimuovi</button>
+                  </div>
                 </div>
               </div>
             ))}
@@ -219,6 +235,18 @@ export default function CollezionePage() {
 
       {/* Pop-up dettaglio carta */}
       <CartaModal voce={dettaglio} onClose={() => setDettaglio(null)} />
+
+      {/* Pop-up inserimento manuale */}
+      <InserisciManuale
+        aperto={manuale}
+        onChiudi={() => setManuale(false)}
+        conQuantita
+        titolo="✍️ Aggiungi carta a mano"
+        onSalva={(carta, quantita) => {
+          c.aggiungiColl(carta.codice, carta, quantita);
+          setManuale(false);
+        }}
+      />
     </main>
   );
 }
