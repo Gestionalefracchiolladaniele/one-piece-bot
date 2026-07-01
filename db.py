@@ -223,6 +223,32 @@ def ultimi_affari(limite: int = 50) -> list[dict]:
 
 
 # ============================================================================
+# COLLEZIONE (le carte che possiedi + quante — il "raccoglitore")
+# ============================================================================
+def collezione_tutta() -> list[dict]:
+    resp = supabase().table("collezione").select("*").order("created_at").execute()
+    return resp.data or []
+
+
+def aggiungi_collezione(codice: str, quantita: int = 1, note: str = "") -> dict:
+    """Aggiunge (o aggiorna) una carta in collezione. `codice` è la chiave."""
+    record = {"codice": codice, "quantita": max(1, int(quantita)), "note": note}
+    record.setdefault("created_at", _now())
+    supabase().table("collezione").upsert(record).execute()
+    resp = supabase().table("collezione").select("*").eq("codice", codice).limit(1).execute()
+    righe = resp.data or []
+    return righe[0] if righe else record
+
+
+def aggiorna_collezione(codice: str, campi: dict) -> None:
+    supabase().table("collezione").update(campi).eq("codice", codice).execute()
+
+
+def rimuovi_collezione(codice: str) -> None:
+    supabase().table("collezione").delete().eq("codice", codice).execute()
+
+
+# ============================================================================
 # CONFIG (impostazioni globali — 1 riga)
 # ============================================================================
 def get_config() -> dict:

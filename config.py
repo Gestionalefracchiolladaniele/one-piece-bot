@@ -85,8 +85,21 @@ APIFY_CARDMARKET_ACTOR = os.environ.get("APIFY_CARDMARKET_ACTOR", "kazkn/smart-s
 # Dominio Cardmarket + gioco (per costruire gli URL prodotto).
 CARDMARKET_BASE = os.environ.get("CARDMARKET_BASE", "https://www.cardmarket.com/en/OnePiece")
 
-# --- (Futuro) TCG API — 2° riferimento opzionale ---
+# --- tcgapi.dev — anagrafica carte + prezzi di mercato (TCGPlayer/USA, USD) ---
+# Usata da tcgapi_source.py per DUE scopi: (1) anagrafica (nome/numero/set/immagine),
+# (2) prezzi (market/median/low, in USD → mostrati anche in € come stima). Free tier
+# = 100 richieste/GIORNO (paginate, quindi un set costa poche chiamate). Auth via
+# header X-API-Key. Chiave dal formato `tcg_live_...` (registrati su tcgapi.dev).
 TCGAPI_KEY = _env("TCGAPI_KEY")
+TCGAPI_API_BASE = os.environ.get("TCGAPI_API_BASE", "https://api.tcgapi.dev/v1")
+TCGAPI_GAME_SLUG = os.environ.get("TCGAPI_GAME_SLUG", "one-piece-card-game")
+# Risultati per pagina nella ricerca: alto = meno chiamate (meno budget) per set interi.
+TCGAPI_PER_PAGE = int(os.environ.get("TCGAPI_PER_PAGE", "100"))
+
+
+def tcgapi_disponibile() -> bool:
+    """True se tcgapi.dev è configurato (anagrafica + prezzi)."""
+    return not manca(TCGAPI_KEY)
 
 
 def apify_disponibile() -> bool:
@@ -208,3 +221,7 @@ VINTED_DOMINI = {
 
 # Valuta di riferimento (CardTrader restituisce cents in EUR di solito).
 VALUTA = "EUR"
+
+# Cambio USD→EUR di fallback se il feed gratuito non risponde (vedi tcgapi_source).
+# I prezzi tcgapi.dev sono in USD (mercato USA): li mostriamo anche in € come stima.
+CAMBIO_USD_EUR_FALLBACK = float(os.environ.get("CAMBIO_USD_EUR_FALLBACK", "0.92"))

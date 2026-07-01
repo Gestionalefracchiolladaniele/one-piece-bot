@@ -219,6 +219,16 @@ a {
   box-shadow: 0 0 0 3px rgba(167, 139, 250, 0.22);
 }
 
+/* mobile: font-size 16px sui campi evita lo zoom automatico di iOS Safari */
+@media (max-width: 640px) {
+  .field {
+    font-size: 16px;
+  }
+  .btn {
+    min-height: 40px;
+  }
+}
+
 /* chip stelle / badge */
 .badge {
   display: inline-flex;

@@ -53,6 +53,25 @@ export type PrezzoStorico = {
   timestamp: string;
 };
 
+// Una carta nel "raccoglitore" (collezione) — arricchita dall'API con anagrafica e valore.
+export type VoceCollezione = {
+  codice: string;
+  quantita: number;
+  note: string;
+  created_at: string;
+  carta?: Carta | null;
+  prezzo_usd: number | null; // prezzo unitario (mercato USA/TCGPlayer)
+  prezzo_eur: number | null; // stima in € (cambio applicato)
+  valore_usd: number | null; // prezzo_usd × quantità
+  valore_eur: number | null; // stima in € del valore riga
+};
+
+export type TotaleCollezione = {
+  pezzi: number; // somma delle quantità
+  usd: number;   // valore totale in USD
+  eur: number;   // valore totale stimato in €
+};
+
 export type AppConfig = {
   id: number;
   finestra_inizio: number;

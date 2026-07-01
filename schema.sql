@@ -82,6 +82,18 @@ create table if not exists affari (
 );
 
 -- ----------------------------------------------------------------------------
+-- TABELLA: collezione  (le carte che POSSIEDI + quante copie — il "raccoglitore")
+-- PK = codice. Il valore si calcola a runtime da prezzi_riferimento (nessun prezzo
+-- duplicato qui): quantita × ultimo prezzo noto. Indipendente dalla watchlist.
+-- ----------------------------------------------------------------------------
+create table if not exists collezione (
+  codice      text primary key references carte(codice) on delete cascade,
+  quantita    int  not null default 1,
+  note        text not null default '',
+  created_at  timestamptz not null default now()
+);
+
+-- ----------------------------------------------------------------------------
 -- TABELLA: config  (impostazioni globali — 1 riga, id=1)
 -- ----------------------------------------------------------------------------
 create table if not exists config (
@@ -110,4 +122,5 @@ alter table watchlist           enable row level security;
 alter table prezzi_riferimento  enable row level security;
 alter table annunci_visti       enable row level security;
 alter table affari              enable row level security;
+alter table collezione          enable row level security;
 alter table config              enable row level security;

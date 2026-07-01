@@ -106,20 +106,58 @@ Dashboard su Vercel per gestire watchlist/regole/finestra e vedere gli ultimi af
   testo scuro su bianco), **font ottimizzati** via `next/font` (Inter + Sora, subset
   latin, pesi ridotti). Particelle ridotte 18→14 (più leggero), valori deterministici
   (no hydration mismatch).
+- **Layout mobile-first**: `page.tsx` usa classi Tailwind responsive (non più inline
+  style fissi) — stack verticale sotto `sm:` (640px), select/bottoni full-width su
+  mobile e affiancati da tablet in su, `viewport` con `width=device-width` in
+  `layout.tsx`. In `globals.css`: sotto 640px i `.field` forzano `font-size: 16px`
+  (evita lo zoom automatico di iOS Safari sul focus) e i `.btn` hanno `min-height: 40px`
+  (touch target). Provare sempre su viewport stretto (≤375px) dopo modifiche a `page.tsx`.
 - `src/app/page.tsx` — dashboard (client): finestra oraria, ricerca+aggiungi carta,
   watchlist con regole inline, ultimi affari. Chiama le API route.
 - `src/app/api/*` — route server (service role, RLS deny-all): `watchlist` (GET/POST/
-  PATCH/DELETE), `cards` (ricerca), `deals`, `config`, `prices`.
-- `src/lib/` — `supabase.ts` (browser anon + admin service role), `env.ts`, `types.ts`.
+  PATCH/DELETE), `cards` (ricerca DB o `?live=1` su tcgapi), `collezione` (GET/POST/
+  PATCH/DELETE), `deals`, `config`, `prices`.
+- `src/lib/` — `supabase.ts` (browser anon + admin service role), `env.ts`, `types.ts`,
+  `tcgapi.ts` (client tcgapi.dev server-side: `cercaLive`, `cartaPerCodice`).
 - Env web: `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY` (client),
-  `SUPABASE_SERVICE_ROLE_KEY` (solo server). Build: `cd web && pnpm install && pnpm build`.
+  `SUPABASE_SERVICE_ROLE_KEY` (solo server), `TCGAPI_KEY` (+ `TCGAPI_API_BASE`,
+  `TCGAPI_GAME_SLUG`, `CAMBIO_USD_EUR` opz.) per la ricerca live/collezione.
+  Build: `cd web && pnpm install && pnpm build`.
+
+## 📚 Collezione ("raccoglitore") + fonte prezzi tcgapi.dev
+Aggiunta una **collezione personale**: le carte che POSSIEDI + quante copie, con
+**valore totale** stimato. Indipendente dalla watchlist (che serve alla caccia affari).
+- **Fonte anagrafica + prezzi = `tcgapi.dev`** (chiave `TCGAPI_KEY`, header `X-API-Key`,
+  base `https://api.tcgapi.dev/v1`). Free tier **100 richieste/GIORNO** (il campo
+  `rate_limit` nella risposta lo conferma). Ricerca paginata → un set costa poche chiamate.
+- ⚠️ **Prezzi in USD** (mercato USA/TCGPlayer), NON EUR/Cardmarket. Li salviamo con
+  `fonte='tcgapi'`, `valuta='USD'`, e li mostriamo ANCHE in € come STIMA (cambio
+  USD→EUR da feed gratuito `open.er-api.com`, fallback `CAMBIO_USD_EUR_FALLBACK`=0.92).
+  **Nessun "fattore Europa"**: USA vs EU non ha un moltiplicatore fisso affidabile
+  (One Piece EU si gioca in inglese = stesso prodotto; il divario dipende dalla fascia
+  carta e dal cambio) → si è scelto di mostrare solo la stima col cambio, etichettata
+  "stima mercato USA". Non reintrodurre un fattore per-carta (finta precisione).
+- **`tcgapi_source.py`** (backend) — client tcgapi: `cerca` (live), `importa_carte`
+  (per SET/nomi, paginato, salva anagrafica+prezzo), `aggiorna_prezzi` (refresh),
+  `cambio_usd_eur`/`usd_in_eur`. Codice carta = campo `number` (es. OP01-120).
+- **`web/src/lib/tcgapi.ts`** — gemello TS lato server per la web app.
+- **Popolamento SENZA riga di comando:** la ricerca della collezione è **live**
+  (`/api/cards?live=1`): l'utente scrive il nome, vede carte reali con foto+prezzo;
+  al click su "+ Colleziona" il POST `/api/collezione` fa **upsert della carta in
+  `carte`** (anagrafica) + salva il prezzo, POI la aggiunge alla collezione. Zero
+  pre-popolamento: il DB si riempie solo con le carte davvero aggiunte (budget-friendly).
+- **Tabella `collezione`** (`codice` PK → FK `carte`, `quantita`, `note`). Il valore
+  NON è salvato: si calcola a runtime (`quantita × ultimo prezzo tcgapi`). Il totale
+  (pezzi/USD/EUR) è calcolato in `/api/collezione` GET.
 
 ## 🔐 Variabili d'ambiente (backend)
 `SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY` (obbl., **service role** non anon) ·
 `TELEGRAM_BOT_TOKEN` + `TELEGRAM_CHAT_ID` (il tuo chat, notifiche personali) ·
 `APIFY_TOKEN` (obbl., Vinted) · `CARDTRADER_TOKEN` (obbl., riferimento) ·
 `GEMINI_API_KEY` (scoring) · `TIMEZONE` (opz., default Europe/Rome) · `FINESTRA_DEFAULT`
-(opz.: mattina|pomeriggio|sera) · `LINGUA_ANAGRAFICA` (opz.) · (futuro: `TCGAPI_KEY`).
+(opz.: mattina|pomeriggio|sera) · `LINGUA_ANAGRAFICA` (opz.) · `TCGAPI_KEY` (anagrafica
++ prezzi collezione via tcgapi.dev; header X-API-Key; free tier 100 req/giorno) ·
+`CAMBIO_USD_EUR_FALLBACK` (opz., default 0.92, per la stima € dei prezzi USD).
 
 ## ⚠️ Principi non negoziabili
 1. Uso personale, basso volume (3 carte). Non commerciale.
@@ -152,9 +190,34 @@ Dashboard su Vercel per gestire watchlist/regole/finestra e vedere gli ultimi af
 2. **`zoneinfo` su Windows** → serve `tzdata` (già in requirements).
 3. **Gemini 503** su flash-lite → lista `MODELLI_SCORING` con retry+fallback.
 4. Dopo un `ALTER TABLE` su Supabase, riavviare (cache schema).
+5. **`card_database.py`/punk-records: schema ROTTO.** `PUNK_RECORDS_BASE` punta a
+   `cards/<lingua>.json`, ma il repo reale (`buhbbl/punk-records`) è per-carta:
+   `english/cards/<pack_id>/<CODICE>.json` (lingue: english, japanese, french…, NON
+   `en`). `card_database.py` così com'è scarica un 404 → anagrafica vuota. Per la
+   collezione questo è AGGIRATO usando **tcgapi.dev come anagrafica** (una fonte sola).
+   Se un giorno si vuole punk-records, va riscritto per leggere l'albero git + i file
+   per-carta. Ogni carta punk-records: `id`, `name`, `colors`, `rarity`, `img_full_url`.
 
 ## ✅ Stato
-Rebrand del codice completato (backend + web). Da fare per andare in produzione:
-creare/recuperare i token (Supabase, Telegram, Apify, CardTrader, Gemini), eseguire
-`schema.sql`, popolare l'anagrafica (`card_database.py`), configurare i Secret GitHub,
-deployare `web/` su Vercel. **Test costo Apify reale** al primo run (confermare le stime).
+Rebrand del codice completato (backend + web) + **collezione con valore via tcgapi.dev**
+(ricerca live testata OK con chiave reale; web app compila pulita `tsc --noEmit`).
+Da fare per andare in produzione:
+- Eseguire lo `schema.sql` **aggiornato** su Supabase (crea la tabella `collezione`).
+- Token già in `.env` (local): Supabase, Telegram (chat id numerico impostato), Apify,
+  Gemini, `TCGAPI_KEY`. CardTrader resta opzionale (non necessario per la collezione).
+- Configurare i Secret GitHub + le env Vercel (incl. `TCGAPI_KEY`), deployare `web/`.
+- La collezione si popola da sola dalla ricerca live (nessun `card_database.py`).
+- **Test costo Apify reale** al primo run Vinted (confermare le stime). Occhio al
+  budget tcgapi **100 req/giorno** se si importano molti set in una volta.
+
+## 🛠️ Sessione: collezione + tcgapi (cosa è stato fatto)
+- Scoperto: chiave `TCGAPI_KEY` è di **tcgapi.dev** (non apitcg.com); host giusto
+  `api.tcgapi.dev/v1`, header `X-API-Key`, prezzi USD/TCGPlayer, free tier 100/giorno.
+  apitcg.com invece NON dà prezzi; punk-records ha lo schema rotto (vedi insidia #5).
+- Aggiunti: `tcgapi_source.py`, tabella `collezione` (`schema.sql`), helper `db.py`
+  (collezione), costanti `config.py` (tcgapi + cambio), route `web/.../api/collezione`,
+  ricerca live in `api/cards?live=1`, `web/src/lib/tcgapi.ts`, sezione "📚 La mia
+  collezione" in `page.tsx` (ricerca live con foto+prezzo, quantità, valore, totale),
+  tipi `VoceCollezione`/`TotaleCollezione` in `types.ts`.
+- `.env`: `TELEGRAM_CHAT_ID` corretto (era il nome del bot → ora id numerico); commento
+  `TCGAPI_KEY` aggiornato (non più "futuro").
