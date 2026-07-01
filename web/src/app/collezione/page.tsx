@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useClaupiece, type CartaLive } from '@/lib/useClaupiece';
 import { AzioneBtn } from '@/components/AzioneBtn';
 import { CartaModal } from '@/components/CartaModal';
@@ -14,6 +14,7 @@ export default function CollezionePage() {
   const [query, setQuery] = useState('');
   const [risultati, setRisultati] = useState<CartaLive[]>([]);
   const [cercando, setCercando] = useState(false);
+  const [cercato, setCercato] = useState(false); // true dopo la prima ricerca (per il "nessun risultato")
   const [msg, setMsg] = useState<string | null>(null);
   // Ricerca LOCALE tra le carte già in collezione (per nome/codice).
   const [filtro, setFiltro] = useState('');
@@ -39,20 +40,17 @@ export default function CollezionePage() {
 
   const nascoste = !filtro.trim() && ordinata.length > TOP_N ? ordinata.length - TOP_N : 0;
 
-  // Ricerca LIVE su tcgapi: carte reali con prezzo, anche non ancora in DB.
-  // Debounce più lungo per non sprecare il budget richieste (100/giorno).
-  // Dipende SOLO da cercaLive (stabile) e query: NON dall'intero `c` (loop).
-  useEffect(() => {
+  // Ricerca MANUALE su tcgapi (bottone/Invio): 1 sola richiesta per ricerca, per NON
+  // bruciare il free tier (100 req/giorno account-wide). Niente auto-live mentre digiti.
+  async function cerca() {
     const q = query.trim();
-    if (!q) { setRisultati([]); setCercando(false); return; }
+    if (q.length < 2) return;
     setCercando(true);
-    const t = setTimeout(async () => {
-      try { setRisultati(await cercaLive(q)); }
-      catch { setRisultati([]); }
-      finally { setCercando(false); }
-    }, 450);
-    return () => clearTimeout(t);
-  }, [query, cercaLive]);
+    setCercato(true);
+    try { setRisultati(await cercaLive(q)); }
+    catch { setRisultati([]); }
+    finally { setCercando(false); }
+  }
 
   return (
     <main className="mx-auto max-w-[960px] px-4 pt-6 pb-16 sm:px-5 sm:pt-8">
@@ -95,20 +93,27 @@ export default function CollezionePage() {
       <section className="card mb-6 p-4 sm:p-5">
         <h2 className="mb-1 font-display text-base text-on-card-high sm:text-lg">➕ Aggiungi una carta</h2>
         <p className="mb-3 text-xs text-on-card-low">
-          Cerca per <strong>nome</strong> (es. Zoro, Luffy). Ogni risultato mostra codice, set e
-          rarità: scegli la variante giusta. La ricerca per codice esatto non è sempre supportata
-          dalla fonte prezzi.
+          Scrivi il <strong>nome</strong> e premi <strong>Cerca</strong> (o Invio): parte 1 sola
+          ricerca (il servizio prezzi ha un limite giornaliero). Cerca il nome del personaggio
+          (es. Luffy); i risultati mostrano codice/set/rarità per scegliere la variante.
         </p>
-        <input
-          className="field"
-          placeholder="Cerca per nome (es. Zoro, Nami, Luffy)…"
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-        />
-        {cercando && <p className="mt-2.5 text-[13px] text-on-card-low">Cerco…</p>}
-        {!cercando && query.trim().length >= 2 && risultati.length === 0 && (
+        <div className="flex gap-2">
+          <input
+            className="field flex-1"
+            placeholder="Nome carta (es. Luffy, Zoro, Nami)…"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter') cerca(); }}
+          />
+          <button className="btn btn-accent shrink-0" onClick={cerca} disabled={cercando || query.trim().length < 2}>
+            {cercando ? '…' : '🔍 Cerca'}
+          </button>
+        </div>
+        {!cercando && cercato && risultati.length === 0 && (
           <p className="mt-2.5 text-[13px] text-on-card-low">
-            Nessuna carta trovata per “{query.trim()}”. Prova solo il nome del personaggio.
+            Nessuna carta trovata per “{query.trim()}”. Prova solo il nome (es. Luffy). Se non
+            appare nulla per nessuna ricerca, potrebbe essere finito il limite giornaliero
+            (si azzera a mezzanotte UTC).
           </p>
         )}
         {risultati.length > 0 && (
@@ -135,7 +140,7 @@ export default function CollezionePage() {
                     </span>
                   </span>
                 </span>
-                <button className="btn btn-accent btn-sm w-full shrink-0 sm:w-auto" onClick={() => { c.aggiungiColl(card.codice, card); setQuery(''); }}>
+                <button className="btn btn-accent btn-sm w-full shrink-0 sm:w-auto" onClick={() => { c.aggiungiColl(card.codice, card); setQuery(''); setRisultati([]); setCercato(false); }}>
                   + Colleziona
                 </button>
               </li>

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { useClaupiece, type CartaLive } from '@/lib/useClaupiece';
 import type { Watch } from '@/lib/types';
 
@@ -16,22 +16,20 @@ export default function WatchlistPage() {
   const [query, setQuery] = useState('');
   const [risultati, setRisultati] = useState<CartaLive[]>([]);
   const [cercando, setCercando] = useState(false);
+  const [cercato, setCercato] = useState(false);
   const [avviso, setAvviso] = useState<string | null>(null);
 
-  // Ricerca LIVE su tcgapi (come la collezione): il DB `carte` è vuoto finché non
-  // aggiungi qualcosa, quindi la ricerca dev'essere live. Al POST la carta viene
-  // salvata in anagrafica. Dipende SOLO da cercaLive (stabile), NON dall'oggetto `c`.
-  useEffect(() => {
+  // Ricerca MANUALE su tcgapi (bottone/Invio): 1 sola richiesta, per non bruciare il
+  // free tier (100 req/giorno). La carta viene salvata in anagrafica al POST.
+  async function cerca() {
     const q = query.trim();
-    if (!q) { setRisultati([]); setCercando(false); return; }
+    if (q.length < 2) return;
     setCercando(true);
-    const t = setTimeout(async () => {
-      try { setRisultati(await cercaLive(q)); }
-      catch { setRisultati([]); }
-      finally { setCercando(false); }
-    }, 450);
-    return () => clearTimeout(t);
-  }, [query, cercaLive]);
+    setCercato(true);
+    try { setRisultati(await cercaLive(q)); }
+    catch { setRisultati([]); }
+    finally { setCercando(false); }
+  }
 
   const MAX_ATTIVE = 3;
   const attive = c.watchlist.filter((w) => w.attiva).length;
@@ -67,18 +65,27 @@ export default function WatchlistPage() {
       <section className="card mb-6 p-4 sm:p-5">
         <h2 className="mb-1 font-display text-base text-on-card-high sm:text-lg">➕ Aggiungi una carta</h2>
         <p className="mb-3 text-xs text-on-card-low">
-          Cerca per <strong>nome</strong> (es. Shanks, Luffy). La carta viene salvata in
-          anagrafica quando la aggiungi.
+          Scrivi il <strong>nome</strong> e premi <strong>Cerca</strong> (o Invio): 1 sola
+          ricerca (limite giornaliero del servizio prezzi). La carta viene salvata al momento
+          dell'aggiunta.
         </p>
-        <input
-          className="field"
-          placeholder="Cerca per nome (es. Shanks, Luffy)…"
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-        />
-        {cercando && <p className="mt-2.5 text-[13px] text-on-card-low">Cerco…</p>}
-        {!cercando && query.trim().length >= 2 && risultati.length === 0 && (
-          <p className="mt-2.5 text-[13px] text-on-card-low">Nessuna carta trovata per “{query.trim()}”.</p>
+        <div className="flex gap-2">
+          <input
+            className="field flex-1"
+            placeholder="Nome carta (es. Shanks, Luffy)…"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter') cerca(); }}
+          />
+          <button className="btn btn-accent shrink-0" onClick={cerca} disabled={cercando || query.trim().length < 2}>
+            {cercando ? '…' : '🔍 Cerca'}
+          </button>
+        </div>
+        {!cercando && cercato && risultati.length === 0 && (
+          <p className="mt-2.5 text-[13px] text-on-card-low">
+            Nessuna carta trovata per “{query.trim()}”. Prova solo il nome. Se non appare nulla
+            per nessuna ricerca, può essere finito il limite giornaliero (si azzera a mezzanotte UTC).
+          </p>
         )}
         {risultati.length > 0 && (
           <ul className="mt-3 grid list-none gap-2 p-0">
@@ -98,7 +105,7 @@ export default function WatchlistPage() {
                     </span>
                   </span>
                 </span>
-                <button className="btn btn-accent btn-sm w-full shrink-0 sm:w-auto" onClick={() => { c.aggiungiWatch(card.codice, card); setQuery(''); }}>
+                <button className="btn btn-accent btn-sm w-full shrink-0 sm:w-auto" onClick={() => { c.aggiungiWatch(card.codice, card); setQuery(''); setRisultati([]); setCercato(false); }}>
                   Aggiungi
                 </button>
               </li>
