@@ -210,6 +210,10 @@ PRIORITA = ["vip", "normale", "bassa"]
 N_RISULTATI_PER_CARTA = 1          # newest_first → l'annuncio più recente in target
 VINTED_ORDER = "newest_first"      # ordina per più recenti (l'affare fresco)
 VINTED_MARKET_DEFAULT = "it"       # mercato di default (it | eu) per carta
+# Categoria Vinted "Carte da collezione / Trading cards": filtra alla fonte via/gadget/
+# vestiti → meno RUMORE e meno risultati inutili pagati. È il `catalog[]` nell'URL Vinted.
+# Vuoto = nessun filtro categoria. Verifica l'id sul dominio giusto se cambia.
+VINTED_CATALOG_ID = os.environ.get("VINTED_CATALOG_ID", "")
 # Mappa mercato → dominio Vinted (per costruire gli URL di ricerca).
 VINTED_DOMINI = {
     "it": "www.vinted.it",

@@ -100,6 +100,8 @@ def _prepara_carte(watchlist: list[dict]) -> list[dict]:
             "nome": carta.get("nome", ""),
             "paese": w.get("paese", config.VINTED_MARKET_DEFAULT),
             "prezzo_max": prezzo_max,
+            # URL Vinted personalizzato (opz.): se c'è, vinted_source lo usa così com'è.
+            "vinted_url": w.get("vinted_url") or "",
             "regola_tipo": w.get("regola_tipo", "perc_sconto"),
             "regola_valore": float(w.get("regola_valore") or 0),
             "priorita": w.get("priorita", "normale"),

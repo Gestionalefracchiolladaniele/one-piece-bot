@@ -69,11 +69,17 @@ export async function GET() {
   return NextResponse.json({ collezione: arricchita, totale });
 }
 
-// Garantisce che la carta esista in anagrafica (`carte`), evitando la violazione
-// della FK. Preferisce i dati carta passati dal client (già disponibili dalla
-// ricerca live: nome, set, prezzo, immagine) — così NON serve ri-cercare per codice
-// su tcgapi (che cerca solo per nome → il codice esatto spesso non si trova).
-// Se il client non passa i dati, come fallback prova cartaPerCodice.
+// Garantisce che la carta esista in anagrafica (`carte`) e prova a salvarne il prezzo.
+//
+// Flusso (dopo il rebrand ricerca-da-DB): l'anagrafica delle ~4500 carte è già nel
+// DB (punk-records), quindi di norma la carta ESISTE già → non tocchiamo `carte`.
+// Il prezzo però NON è nel DB (punk-records non ha prezzi): al momento dell'aggiunta
+// facciamo UNA chiamata tcgapi MIRATA sul `number` esatto per registrarlo. È la
+// chiamata "buona" (1 sola, precisa) invece di ri-cercare per nome.
+//
+// Priorità dati carta: (1) prezzo già passato dal client (ricerca live) → nessuna
+// chiamata; (2) altrimenti tcgapi per codice esatto; (3) dati anagrafica dal client
+// (foto manuale, ecc.) per l'upsert se la carta non fosse nel DB.
 // Ritorna true se la carta è disponibile in `carte`, false se impossibile.
 async function assicuraCarta(
   sb: ReturnType<typeof supabaseAdmin>,
@@ -81,30 +87,41 @@ async function assicuraCarta(
   carta?: Partial<CartaLive>,
 ): Promise<boolean> {
   const { data: esistente } = await sb.from('carte').select('codice').eq('codice', codice).limit(1);
-  if (esistente?.length) return true;
+  const giaInDb = !!esistente?.length;
 
-  // Dati dal client (preferiti) o fallback su tcgapi per codice.
-  let dati: CartaLive | null = null;
-  if (carta?.nome) {
-    dati = {
-      codice, nome: carta.nome, set: carta.set ?? '', rarita: carta.rarita ?? '',
-      printing: carta.printing ?? '', tipo: carta.tipo ?? '',
-      immagine_url: carta.immagine_url ?? '',
-      prezzo_usd: carta.prezzo_usd ?? null, prezzo_eur: carta.prezzo_eur ?? null,
-    };
-  } else {
-    try { dati = await cartaPerCodice(codice); } catch { dati = null; }
+  // Prezzo: se il client l'ha già (ricerca live), usiamo quello. Altrimenti chiamata
+  // tcgapi mirata sul codice esatto (1 richiesta) per ottenere il prezzo di mercato.
+  let prezzoUsd = carta?.prezzo_usd ?? null;
+  let datiTcg: CartaLive | null = null;
+  if (prezzoUsd == null) {
+    try { datiTcg = await cartaPerCodice(codice); } catch { datiTcg = null; }
+    prezzoUsd = datiTcg?.prezzo_usd ?? null;
   }
-  if (!dati) return false;
 
-  const { error: eCarta } = await sb.from('carte').upsert({
-    codice: dati.codice || codice, nome: dati.nome, set: dati.set, rarita: dati.rarita,
-    tipo: dati.tipo, immagine_url: dati.immagine_url, lingua: 'en',
-  });
-  if (eCarta) return false;
-  if (dati.prezzo_usd != null) {
+  // Se la carta non è ancora in `carte` (es. inserimento manuale, o codice non nel
+  // dataset), la creiamo dai dati disponibili (client > tcgapi).
+  if (!giaInDb) {
+    const nome = carta?.nome ?? datiTcg?.nome ?? '';
+    if (!nome) return false; // niente di sensato da salvare
+    const { error: eCarta } = await sb.from('carte').upsert({
+      codice,
+      nome,
+      set: carta?.set ?? datiTcg?.set ?? '',
+      rarita: carta?.rarita ?? datiTcg?.rarita ?? '',
+      tipo: carta?.tipo ?? datiTcg?.tipo ?? '',
+      immagine_url: carta?.immagine_url ?? datiTcg?.immagine_url ?? '',
+      lingua: 'en',
+    });
+    if (eCarta) return false;
+  } else if (carta?.immagine_url) {
+    // Carta già nota ma l'utente ha fornito una foto propria (inserimento manuale):
+    // aggiorniamo solo l'immagine, senza sovrascrivere il resto dell'anagrafica.
+    await sb.from('carte').update({ immagine_url: carta.immagine_url }).eq('codice', codice);
+  }
+
+  if (prezzoUsd != null) {
     await sb.from('prezzi_riferimento').insert({
-      codice, fonte: 'tcgapi', prezzo: dati.prezzo_usd, valuta: 'USD',
+      codice, fonte: 'tcgapi', prezzo: prezzoUsd, valuta: 'USD',
     });
   }
   return true;

@@ -67,10 +67,12 @@ export function useClaupiece() {
     ricarica();
   }, [ricarica]);
 
-  // ── Watchlist ──
-  const cercaCarte = useCallback(async (q: string): Promise<Carta[]> => {
-    if (!q.trim()) return [];
-    const { carte } = await api<{ carte: Carta[] }>(`/api/cards?q=${encodeURIComponent(q.trim())}`);
+  // ── Ricerca carte ──
+  // DEFAULT: cerca nell'anagrafica LOCALE (~4500 carte da punk-records). Zero costo,
+  // zero chiamate esterne. Ritorna CartaLive (prezzo null: verrà preso all'aggiunta).
+  const cercaCarte = useCallback(async (q: string): Promise<CartaLive[]> => {
+    if (q.trim().length < 2) return [];
+    const { carte } = await api<{ carte: CartaLive[] }>(`/api/cards?q=${encodeURIComponent(q.trim())}`);
     return carte;
   }, []);
 
@@ -114,9 +116,10 @@ export function useClaupiece() {
       .catch(() => ricaricaWatch());
   }, [ricaricaWatch]);
 
-  // ── Collezione (ricerca live tcgapi) ──
-  const cercaLive = useCallback(async (q: string): Promise<CartaLive[]> => {
-    if (!q.trim()) return [];
+  // Fallback ONLINE: cerca su tcgapi (con prezzo). Usato solo quando il DB non trova
+  // la carta (bottone "Cerca online"). Costa 1 richiesta del budget 100/giorno.
+  const cercaOnline = useCallback(async (q: string): Promise<CartaLive[]> => {
+    if (q.trim().length < 2) return [];
     const { carte } = await api<{ carte: CartaLive[] }>(`/api/cards?live=1&q=${encodeURIComponent(q.trim())}`);
     return carte;
   }, []);
@@ -233,8 +236,8 @@ export function useClaupiece() {
     // stato
     watchlist, affari, inizio, fine, inPausa, collezione, totale, caricando, errore,
     // azioni
-    ricarica, cercaCarte, aggiungiWatch, aggiornaWatch, rimuoviWatch,
-    cercaLive, aggiungiColl, aggiornaColl, rimuoviColl,
+    ricarica, cercaCarte, cercaOnline, aggiungiWatch, aggiornaWatch, rimuoviWatch,
+    aggiungiColl, aggiornaColl, rimuoviColl,
     salvaFinestra, togglePausa,
     aggiornaPrezziColl, aggiornaPrezzoCarta, avviaCaccia, inviaRiepilogo,
   };

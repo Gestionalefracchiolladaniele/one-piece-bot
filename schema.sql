@@ -36,8 +36,13 @@ create table if not exists watchlist (
   regola_tipo    text    not null default 'prezzo_max', -- prezzo_max | perc_sconto | ogni_annuncio
   regola_valore  numeric not null default 30,           -- es. 30.0 (€ tetto) o 20.0 (% sconto)
   paese          text    not null default 'it',         -- it | eu (filtro Vinted/riferimento)
+  vinted_url     text,                                   -- URL Vinted personalizzato (opz.): se
+                                                         -- presente, il bot usa ESATTAMENTE questa
+                                                         -- ricerca invece di generarla dai filtri
   created_at     timestamptz not null default now()
 );
+-- Migrazione per DB esistenti (aggiunge la colonna se manca):
+alter table watchlist add column if not exists vinted_url text;
 
 -- ----------------------------------------------------------------------------
 -- TABELLA: prezzi_riferimento  (storico prezzi per carta/fonte)

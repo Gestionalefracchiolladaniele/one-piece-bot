@@ -1,56 +1,50 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import { useClaupiece, type CartaLive } from '@/lib/useClaupiece';
 import { AzioneBtn } from '@/components/AzioneBtn';
 import { CartaModal } from '@/components/CartaModal';
 import { RisultatiRicerca } from '@/components/RisultatiRicerca';
 import { InserisciManuale } from '@/components/InserisciManuale';
+import { Binder } from '@/components/Binder';
 import type { VoceCollezione } from '@/lib/types';
-
-const TOP_N = 5; // quante carte mostrare di default (le più preziose)
 
 export default function CollezionePage() {
   const c = useClaupiece();
-  const { cercaLive } = c;
+  const { cercaCarte, cercaOnline } = c;
   const [query, setQuery] = useState('');
   const [risultati, setRisultati] = useState<CartaLive[]>([]);
   const [cercando, setCercando] = useState(false);
   const [cercato, setCercato] = useState(false); // true dopo la prima ricerca (per il "nessun risultato")
+  const [online, setOnline] = useState(false); // true se i risultati vengono da tcgapi
   const [msg, setMsg] = useState<string | null>(null);
   const [manuale, setManuale] = useState(false); // pop-up inserimento manuale
-  // Ricerca LOCALE tra le carte già in collezione (per nome/codice).
-  const [filtro, setFiltro] = useState('');
-  // Carta aperta nel pop-up di dettaglio.
-  const [dettaglio, setDettaglio] = useState<VoceCollezione | null>(null);
+  // Codice della carta aperta nel pop-up di dettaglio (deriviamo la voce FRESCA dallo
+  // stato, così il modal riflette subito quantità/prezzo aggiornati).
+  const [dettaglioCodice, setDettaglioCodice] = useState<string | null>(null);
+  const dettaglio = dettaglioCodice ? c.collezione.find((v) => v.codice === dettaglioCodice) ?? null : null;
 
-  // Collezione ordinata per valore decrescente.
-  const ordinata = useMemo(
-    () => [...c.collezione].sort((a, b) => (b.valore_usd ?? 0) - (a.valore_usd ?? 0)),
-    [c.collezione],
-  );
-
-  // Cosa mostrare: se sto filtrando → tutte quelle che matchano; altrimenti solo le TOP_N.
-  const daMostrare = useMemo(() => {
-    const f = filtro.trim().toLowerCase();
-    if (f) {
-      return ordinata.filter(
-        (v) => (v.carta?.nome ?? '').toLowerCase().includes(f) || v.codice.toLowerCase().includes(f),
-      );
-    }
-    return ordinata.slice(0, TOP_N);
-  }, [ordinata, filtro]);
-
-  const nascoste = !filtro.trim() && ordinata.length > TOP_N ? ordinata.length - TOP_N : 0;
-
-  // Ricerca MANUALE su tcgapi (bottone/Invio): 1 sola richiesta per ricerca, per NON
-  // bruciare il free tier (100 req/giorno account-wide). Niente auto-live mentre digiti.
+  // Ricerca di DEFAULT nell'anagrafica locale (~4500 carte). Zero costo, zero chiamate.
+  // Il prezzo tcgapi si prende SOLO al click "Colleziona" (POST, per il number esatto).
   async function cerca() {
     const q = query.trim();
     if (q.length < 2) return;
     setCercando(true);
     setCercato(true);
-    try { setRisultati(await cercaLive(q)); }
+    setOnline(false);
+    try { setRisultati(await cercaCarte(q)); }
+    catch { setRisultati([]); }
+    finally { setCercando(false); }
+  }
+
+  // Fallback ONLINE (tcgapi, 1 richiesta) quando il DB non trova la carta.
+  async function cercaWeb() {
+    const q = query.trim();
+    if (q.length < 2) return;
+    setCercando(true);
+    setCercato(true);
+    setOnline(true);
+    try { setRisultati(await cercaOnline(q)); }
     catch { setRisultati([]); }
     finally { setCercando(false); }
   }
@@ -96,9 +90,10 @@ export default function CollezionePage() {
       <section className="card mb-6 p-4 sm:p-5">
         <h2 className="mb-1 font-display text-base text-on-card-high sm:text-lg">➕ Aggiungi una carta</h2>
         <p className="mb-3 text-xs text-on-card-low">
-          Scrivi il <strong>nome</strong> e premi <strong>Cerca</strong> (o Invio): parte 1 sola
-          ricerca (il servizio prezzi ha un limite giornaliero). Cerca il nome del personaggio
-          (es. Luffy); i risultati mostrano codice/set/rarità per scegliere la variante.
+          Scrivi il <strong>nome</strong> e premi <strong>Cerca</strong> (o Invio): la ricerca è
+          nel database locale delle carte (gratis, istantanea). Al click su “+ Colleziona” prendiamo
+          il <strong>prezzo esatto</strong> di quella carta (1 richiesta). I risultati mostrano
+          codice/set/rarità per scegliere la variante.
         </p>
         <div className="flex gap-2">
           <input
@@ -112,10 +107,16 @@ export default function CollezionePage() {
             {cercando ? '…' : '🔍 Cerca'}
           </button>
         </div>
+        {online && risultati.length > 0 && (
+          <p className="mt-2 text-[11px] text-on-card-low">Risultati da tcgapi (con prezzo).</p>
+        )}
         {!cercando && cercato && risultati.length === 0 && (
           <p className="mt-2.5 text-[13px] text-on-card-low">
-            Nessuna carta trovata per “{query.trim()}”. Prova solo il nome (es. Luffy), oppure
-            <button onClick={() => setManuale(true)} className="ml-1 font-semibold text-[color:var(--accent-strong)] underline">
+            Nessuna carta trovata nel database per “{query.trim()}”.{' '}
+            <button onClick={cercaWeb} className="font-semibold text-[color:var(--accent-strong)] underline">
+              🌐 Cerca online (tcgapi)
+            </button>{' '}oppure{' '}
+            <button onClick={() => setManuale(true)} className="font-semibold text-[color:var(--accent-strong)] underline">
               inseriscila a mano
             </button>.
           </p>
@@ -131,110 +132,34 @@ export default function CollezionePage() {
         />
       </section>
 
-      {/* Lista collezione */}
+      {/* Il RACCOGLITORE */}
       <section>
         <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
-          <h2 className="font-display text-lg text-text-high">
-            {filtro.trim() ? `Risultati (${daMostrare.length})` : `Top ${TOP_N} più preziose`}
-          </h2>
-          <span className="text-xs text-text-low">{c.collezione.length} carte totali</span>
+          <h2 className="font-display text-lg text-text-high">🗂️ Il raccoglitore</h2>
+          <span className="text-xs text-text-low">{c.collezione.length} carte · {c.totale.pezzi} pezzi</span>
         </div>
-
-        {/* Ricerca locale tra le carte già in collezione */}
-        {c.collezione.length > 0 && (
-          <input
-            className="field mb-3"
-            placeholder="🔍 Cerca nella tua collezione (nome o codice)…"
-            value={filtro}
-            onChange={(e) => setFiltro(e.target.value)}
-          />
-        )}
 
         {c.caricando ? (
           <p className="text-text-low">Carico…</p>
         ) : c.collezione.length === 0 ? (
           <div className="card p-5 text-on-card-mid">
-            La collezione è vuota. Cerca una carta qui sopra e aggiungila: il valore stimato apparirà accanto.
+            Il raccoglitore è vuoto. Cerca una carta qui sopra e aggiungila: apparirà nelle tasche
+            dell’album, ordinata per valore.
           </div>
-        ) : daMostrare.length === 0 ? (
-          <div className="card p-5 text-on-card-mid">Nessuna carta trovata per “{filtro.trim()}”.</div>
         ) : (
-          <div className="grid gap-3">
-            {daMostrare.map((v) => (
-              <div key={v.codice} className="card p-4">
-                <div className="flex flex-wrap items-center gap-3">
-                  {v.carta?.immagine_url ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
-                      src={v.carta.immagine_url}
-                      alt={v.carta.nome}
-                      width={44}
-                      height={62}
-                      onClick={() => setDettaglio(v)}
-                      className="cursor-pointer rounded-md object-cover transition hover:ring-2 hover:ring-[color:var(--accent)]"
-                      title="Vedi dettaglio"
-                    />
-                  ) : (
-                    <button onClick={() => setDettaglio(v)} className="text-2xl" title="Vedi dettaglio">🃏</button>
-                  )}
-                  <div className="min-w-[140px] flex-1">
-                    <button onClick={() => setDettaglio(v)} className="text-left font-semibold text-on-card-high hover:underline">
-                      {v.carta?.nome || v.codice}
-                    </button>
-                    <div className="text-xs text-on-card-low">{v.codice}{v.carta?.set ? ` · ${v.carta.set}` : ''}</div>
-                  </div>
-
-                  <div className="flex w-full flex-wrap items-center justify-between gap-3 sm:w-auto sm:justify-start">
-                    <label className="flex items-center gap-1.5 text-sm text-on-card-mid">
-                      Quantità
-                      <input
-                        className="field w-[72px]"
-                        type="number"
-                        min={1}
-                        value={v.quantita}
-                        onChange={(e) => c.aggiornaColl(v.codice, { quantita: Math.max(1, Number(e.target.value)) })}
-                      />
-                    </label>
-                    <div className="text-right sm:min-w-[120px]">
-                      {v.prezzo_usd != null ? (
-                        <>
-                          <div className="font-semibold text-on-card-high">
-                            ${v.valore_usd?.toFixed(2)}{' '}
-                            <span className="text-[13px] font-normal text-on-card-mid">(~{v.valore_eur?.toFixed(2)}€)</span>
-                          </div>
-                          <div className="text-[11px] text-on-card-low">${v.prezzo_usd.toFixed(2)}/pz · stima USA</div>
-                        </>
-                      ) : (
-                        <span className="text-sm text-on-card-low">prezzo —</span>
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="flex w-full gap-2 sm:w-auto">
-                    <AzioneBtn
-                      className="btn btn-sm flex-1 sm:flex-none"
-                      onClick={() => c.aggiornaPrezzoCarta(v.codice)}
-                      onEsito={setMsg}
-                    >
-                      💲 Prezzo
-                    </AzioneBtn>
-                    <button className="btn btn-danger btn-sm flex-1 sm:flex-none" onClick={() => c.rimuoviColl(v.codice)}>Rimuovi</button>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-
-        {nascoste > 0 && (
-          <p className="mt-3 text-center text-xs text-text-low">
-            +{nascoste} altre carte — usa la ricerca qui sopra per trovarle.
-          </p>
+          <Binder voci={c.collezione} onApri={(v) => setDettaglioCodice(v.codice)} />
         )}
       </section>
 
-      {/* Pop-up dettaglio carta */}
-      <CartaModal voce={dettaglio} onClose={() => setDettaglio(null)} />
+      {/* Pop-up dettaglio carta — con azioni (quantità, prezzo, rimuovi) */}
+      <CartaModal
+        voce={dettaglio}
+        onClose={() => setDettaglioCodice(null)}
+        onQuantita={(codice, q) => c.aggiornaColl(codice, { quantita: q })}
+        onPrezzo={(codice) => c.aggiornaPrezzoCarta(codice)}
+        onRimuovi={(codice) => { c.rimuoviColl(codice); setDettaglioCodice(null); }}
+        onEsito={setMsg}
+      />
 
       {/* Pop-up inserimento manuale */}
       <InserisciManuale

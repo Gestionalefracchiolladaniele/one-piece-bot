@@ -34,8 +34,9 @@ def costruisci_url(testo: str, prezzo_max: Optional[float] = None,
     """URL di ricerca Vinted con i filtri. Vinted filtra lato server → paghi meno.
 
     Parametri usati: search_text, price_to (tetto prezzo), order=newest_first
-    (l'annuncio più fresco = l'affare che sta per sparire). Il dominio dipende dal
-    mercato (it/eu/fr/…).
+    (l'annuncio più fresco = l'affare che sta per sparire), e — se configurato —
+    `catalog[]` = categoria "carte da collezione" per tagliare via vestiti/gadget alla
+    fonte (meno rumore, meno risultati inutili pagati). Il dominio dipende dal mercato.
     """
     dominio = config.VINTED_DOMINI.get(mercato, config.VINTED_DOMINI["it"])
     params: dict[str, str] = {
@@ -44,6 +45,9 @@ def costruisci_url(testo: str, prezzo_max: Optional[float] = None,
     }
     if prezzo_max is not None:
         params["price_to"] = f"{prezzo_max:.0f}"
+    if config.VINTED_CATALOG_ID:
+        # Vinted usa `catalog[]` (array) per la categoria; urlencode lo serializza ok.
+        params["catalog[]"] = str(config.VINTED_CATALOG_ID)
     return f"https://{dominio}/catalog?{urlencode(params)}"
 
 
@@ -138,9 +142,18 @@ def cerca_batch(carte: list[dict]) -> dict[str, list[dict]]:
     url_per_carta: dict[str, str] = {}
     for c in carte:
         codice = c["codice"]
-        # Testo di ricerca: nome + codice → mira alla carta specifica.
-        testo = f"one piece {c.get('nome', '')} {codice}".strip()
-        u = costruisci_url(testo, c.get("prezzo_max"), c.get("paese", "it"))
+        # Se la carta ha un URL Vinted PERSONALIZZATO (impostato a mano nella watchlist),
+        # lo usiamo ESATTAMENTE così com'è: l'utente ha già applicato i filtri fini su
+        # Vinted (categoria, condizione…) → ricerca più mirata di quella auto-generata.
+        personalizzato = (c.get("vinted_url") or "").strip()
+        if personalizzato:
+            u = personalizzato
+        else:
+            # Ricerca auto: il CODICE è il segnale più forte e univoco (il nome è
+            # ambiguo: "Luffy" ha decine di carte). Lo mettiamo per primo, poi il nome
+            # come contesto. + filtro categoria carte (in costruisci_url) = meno rumore.
+            testo = f"one piece {codice} {c.get('nome', '')}".strip()
+            u = costruisci_url(testo, c.get("prezzo_max"), c.get("paese", "it"))
         urls.append(u)
         url_per_carta[codice] = u
 

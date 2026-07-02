@@ -23,6 +23,7 @@ export type Watch = {
   regola_tipo: RegolaTipo;
   regola_valore: number;
   paese: string;
+  vinted_url?: string | null; // URL Vinted personalizzato (opz.): ricerca più mirata
   created_at: string;
   // arricchito dall'API con l'anagrafica carta
   carta?: Carta | null;

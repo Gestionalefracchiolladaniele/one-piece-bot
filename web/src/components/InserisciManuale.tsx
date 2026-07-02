@@ -137,8 +137,27 @@ export function InserisciManuale({
           </label>
           <label className="text-sm text-on-card-mid">
             Immagine (URL)
-            <input className="field mt-1" placeholder="https://…" value={immagine} onChange={(e) => setImmagine(e.target.value)} />
+            <input className="field mt-1" placeholder="https://… (incolla il link di una foto)" value={immagine} onChange={(e) => setImmagine(e.target.value)} />
+            <span className="mt-1 block text-[11px] text-on-card-low">
+              Puoi incollare qualsiasi foto trovata online (tasto destro → “Copia indirizzo immagine”).
+            </span>
           </label>
+          {/* Anteprima della foto incollata: conferma visiva prima di salvare. */}
+          {immagine.trim() && (
+            <div className="flex items-center gap-3 rounded-lg border border-border-card bg-[#f7f5fc] p-2">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={immagine.trim()}
+                alt="anteprima"
+                className="h-[84px] w-[60px] rounded object-cover"
+                onError={(e) => { (e.currentTarget as HTMLImageElement).style.opacity = '0.25'; }}
+                onLoad={(e) => { (e.currentTarget as HTMLImageElement).style.opacity = '1'; }}
+              />
+              <span className="text-[11px] text-on-card-low">
+                Anteprima. Se resta grigia, il link non è un’immagine valida.
+              </span>
+            </div>
+          )}
           {conQuantita && (
             <label className="text-sm text-on-card-mid">
               Quantità

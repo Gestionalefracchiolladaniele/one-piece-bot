@@ -4,38 +4,49 @@ import { cartaPerCodice, type CartaLive } from '@/lib/tcgapi';
 
 // Tutte le letture/scritture passano dal service role (RLS deny-all sullo schema).
 
-// La watchlist ha una FK su `carte`: se la carta non è ancora in anagrafica la
-// salviamo PRIMA. Preferiamo i dati carta passati dal client (dalla ricerca live);
-// fallback su tcgapi per codice. Ritorna true se la carta è disponibile in `carte`.
+// La watchlist ha una FK su `carte`: la carta deve esistere in anagrafica. Con la
+// ricerca-da-DB (punk-records) di norma esiste già → non serve fare nulla. Casi da
+// gestire: (a) inserimento MANUALE di un codice non nel dataset → creiamo la carta
+// dai dati del client (incl. foto propria); (b) carta nota ma foto manuale fornita →
+// aggiorniamo solo l'immagine. Il prezzo per la watchlist non è indispensabile (serve
+// solo a perc_sconto), ma se il client non l'ha lo prendiamo con 1 chiamata mirata.
+// Ritorna true se la carta è disponibile in `carte`.
 async function assicuraCarta(
   sb: ReturnType<typeof supabaseAdmin>,
   codice: string,
   carta?: Partial<CartaLive>,
 ): Promise<boolean> {
   const { data: esistente } = await sb.from('carte').select('codice').eq('codice', codice).limit(1);
-  if (esistente?.length) return true;
+  const giaInDb = !!esistente?.length;
 
-  let dati: CartaLive | null = null;
-  if (carta?.nome) {
-    dati = {
-      codice, nome: carta.nome, set: carta.set ?? '', rarita: carta.rarita ?? '',
-      printing: carta.printing ?? '', tipo: carta.tipo ?? '',
-      immagine_url: carta.immagine_url ?? '',
-      prezzo_usd: carta.prezzo_usd ?? null, prezzo_eur: carta.prezzo_eur ?? null,
-    };
-  } else {
-    try { dati = await cartaPerCodice(codice); } catch { dati = null; }
+  let prezzoUsd = carta?.prezzo_usd ?? null;
+  let datiTcg: CartaLive | null = null;
+  if (prezzoUsd == null && !giaInDb) {
+    // Solo se non è nel DB proviamo tcgapi (per riempire anagrafica mancante).
+    try { datiTcg = await cartaPerCodice(codice); } catch { datiTcg = null; }
+    prezzoUsd = datiTcg?.prezzo_usd ?? null;
   }
-  if (!dati) return false;
 
-  const { error: eCarta } = await sb.from('carte').upsert({
-    codice, nome: dati.nome, set: dati.set, rarita: dati.rarita,
-    tipo: dati.tipo, immagine_url: dati.immagine_url, lingua: 'en',
-  });
-  if (eCarta) return false;
-  if (dati.prezzo_usd != null) {
+  if (!giaInDb) {
+    const nome = carta?.nome ?? datiTcg?.nome ?? '';
+    if (!nome) return false;
+    const { error: eCarta } = await sb.from('carte').upsert({
+      codice,
+      nome,
+      set: carta?.set ?? datiTcg?.set ?? '',
+      rarita: carta?.rarita ?? datiTcg?.rarita ?? '',
+      tipo: carta?.tipo ?? datiTcg?.tipo ?? '',
+      immagine_url: carta?.immagine_url ?? datiTcg?.immagine_url ?? '',
+      lingua: 'en',
+    });
+    if (eCarta) return false;
+  } else if (carta?.immagine_url) {
+    await sb.from('carte').update({ immagine_url: carta.immagine_url }).eq('codice', codice);
+  }
+
+  if (prezzoUsd != null) {
     await sb.from('prezzi_riferimento').insert({
-      codice, fonte: 'tcgapi', prezzo: dati.prezzo_usd, valuta: 'USD',
+      codice, fonte: 'tcgapi', prezzo: prezzoUsd, valuta: 'USD',
     });
   }
   return true;

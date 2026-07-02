@@ -14,28 +14,45 @@ const REGOLE: { key: Watch['regola_tipo']; label: string }[] = [
 
 export default function WatchlistPage() {
   const c = useClaupiece();
-  const { cercaLive } = c;
+  const { cercaCarte, cercaOnline } = c;
   const [query, setQuery] = useState('');
   const [risultati, setRisultati] = useState<CartaLive[]>([]);
   const [cercando, setCercando] = useState(false);
   const [cercato, setCercato] = useState(false);
+  const [online, setOnline] = useState(false); // true se i risultati vengono da tcgapi
   const [avviso, setAvviso] = useState<string | null>(null);
   const [manuale, setManuale] = useState(false);
 
-  // Ricerca MANUALE su tcgapi (bottone/Invio): 1 sola richiesta, per non bruciare il
-  // free tier (100 req/giorno). La carta viene salvata in anagrafica al POST.
+  // Ricerca di DEFAULT nell'anagrafica locale (~4500 carte). Zero costo, zero chiamate.
   async function cerca() {
     const q = query.trim();
     if (q.length < 2) return;
     setCercando(true);
     setCercato(true);
-    try { setRisultati(await cercaLive(q)); }
+    setOnline(false);
+    try { setRisultati(await cercaCarte(q)); }
+    catch { setRisultati([]); }
+    finally { setCercando(false); }
+  }
+
+  // Fallback ONLINE (tcgapi, 1 richiesta) quando il DB non trova la carta.
+  async function cercaWeb() {
+    const q = query.trim();
+    if (q.length < 2) return;
+    setCercando(true);
+    setCercato(true);
+    setOnline(true);
+    try { setRisultati(await cercaOnline(q)); }
     catch { setRisultati([]); }
     finally { setCercando(false); }
   }
 
   const MAX_ATTIVE = 3;
   const attive = c.watchlist.filter((w) => w.attiva).length;
+
+  // Carte già in collezione ma NON ancora in watchlist → sceglibili senza chiamate.
+  const inWatch = new Set(c.watchlist.map((w) => w.codice));
+  const dallaCollezione = c.collezione.filter((v) => !inWatch.has(v.codice));
 
   // Attiva/disattiva rispettando il limite (blocco lato UI + messaggio).
   function toggleAttiva(codice: string, vuoiAttiva: boolean) {
@@ -68,9 +85,9 @@ export default function WatchlistPage() {
       <section className="card mb-6 p-4 sm:p-5">
         <h2 className="mb-1 font-display text-base text-on-card-high sm:text-lg">➕ Aggiungi una carta</h2>
         <p className="mb-3 text-xs text-on-card-low">
-          Scrivi il <strong>nome</strong> e premi <strong>Cerca</strong> (o Invio): 1 sola
-          ricerca (limite giornaliero del servizio prezzi). La carta viene salvata al momento
-          dell'aggiunta.
+          Scrivi il <strong>nome</strong> e premi <strong>Cerca</strong> (o Invio): la ricerca
+          è nel database locale delle carte (gratis, istantanea). Il prezzo viene preso solo
+          al momento dell'aggiunta.
         </p>
         <div className="flex gap-2">
           <input
@@ -84,10 +101,16 @@ export default function WatchlistPage() {
             {cercando ? '…' : '🔍 Cerca'}
           </button>
         </div>
+        {online && risultati.length > 0 && (
+          <p className="mt-2 text-[11px] text-on-card-low">Risultati da tcgapi (con prezzo).</p>
+        )}
         {!cercando && cercato && risultati.length === 0 && (
           <p className="mt-2.5 text-[13px] text-on-card-low">
-            Nessuna carta trovata per “{query.trim()}”. Prova solo il nome, oppure
-            <button onClick={() => setManuale(true)} className="ml-1 font-semibold text-[color:var(--accent-strong)] underline">
+            Nessuna carta trovata nel database per “{query.trim()}”.{' '}
+            <button onClick={cercaWeb} className="font-semibold text-[color:var(--accent-strong)] underline">
+              🌐 Cerca online (tcgapi)
+            </button>{' '}oppure{' '}
+            <button onClick={() => setManuale(true)} className="font-semibold text-[color:var(--accent-strong)] underline">
               inseriscila a mano
             </button>.
           </p>
@@ -100,6 +123,36 @@ export default function WatchlistPage() {
           testoBottone="Aggiungi"
           onAggiungi={(card) => { c.aggiungiWatch(card.codice, card); setQuery(''); setRisultati([]); setCercato(false); }}
         />
+
+        {/* Scegli da collezione: zero chiamate esterne (i dati sono già nel DB) */}
+        {dallaCollezione.length > 0 && (
+          <div className="mt-4 border-t border-border-card pt-3">
+            <label className="mb-1.5 block text-xs font-semibold text-on-card-mid">
+              📚 …oppure scegli una carta dalla tua collezione (gratis):
+            </label>
+            <div className="flex gap-2">
+              <select
+                className="field flex-1"
+                value=""
+                onChange={(e) => {
+                  const v = dallaCollezione.find((x) => x.codice === e.target.value);
+                  if (v) c.aggiungiWatch(v.codice, v.carta ? {
+                    codice: v.codice, nome: v.carta.nome, set: v.carta.set, rarita: v.carta.rarita,
+                    printing: '', tipo: v.carta.tipo, immagine_url: v.carta.immagine_url,
+                    prezzo_usd: v.prezzo_usd, prezzo_eur: v.prezzo_eur,
+                  } : undefined);
+                }}
+              >
+                <option value="">— seleziona dalla collezione —</option>
+                {dallaCollezione.map((v) => (
+                  <option key={v.codice} value={v.codice}>
+                    {v.carta?.nome || v.codice} · {v.codice}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+        )}
       </section>
 
       {/* Lista watchlist */}
@@ -157,6 +210,26 @@ export default function WatchlistPage() {
                     <option value="eu">🇪🇺 EU</option>
                   </select>
                 </div>
+
+                {/* URL Vinted personalizzato (opz.): ricerca più mirata. Vuoto = auto. */}
+                <details className="mt-2">
+                  <summary className="cursor-pointer text-[11px] font-semibold text-[color:var(--accent-strong)]">
+                    🔗 URL Vinted personalizzato (opzionale)
+                  </summary>
+                  <input
+                    className="field mt-2 text-[13px]"
+                    placeholder="Incolla qui l'URL di una ricerca Vinted (lascia vuoto per l'automatico)"
+                    defaultValue={w.vinted_url ?? ''}
+                    onBlur={(e) => {
+                      const v = e.target.value.trim();
+                      if (v !== (w.vinted_url ?? '')) c.aggiornaWatch(w.codice, { vinted_url: v || null });
+                    }}
+                  />
+                  <p className="mt-1 text-[10px] text-on-card-low">
+                    Cerca la carta su Vinted coi filtri che vuoi (categoria, condizione…), copia
+                    l'URL dalla barra e incollalo qui: il bot userà esattamente quella ricerca.
+                  </p>
+                </details>
               </div>
             ))}
           </div>

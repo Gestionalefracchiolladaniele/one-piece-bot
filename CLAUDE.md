@@ -239,13 +239,20 @@ GitHub token per la caccia) stanno SOLO su Vercel (vedi sezione web app).
 2. **`zoneinfo` su Windows** → serve `tzdata` (già in requirements).
 3. **Gemini 503** su flash-lite → lista `MODELLI_SCORING` con retry+fallback.
 4. Dopo un `ALTER TABLE` su Supabase, riavviare (cache schema).
-5. **`card_database.py`/punk-records: schema ROTTO.** `PUNK_RECORDS_BASE` punta a
-   `cards/<lingua>.json`, ma il repo reale (`buhbbl/punk-records`) è per-carta:
-   `english/cards/<pack_id>/<CODICE>.json` (lingue: english, japanese, french…, NON
-   `en`). `card_database.py` così com'è scarica un 404 → anagrafica vuota. Per la
-   collezione questo è AGGIRATO usando **tcgapi.dev come anagrafica** (una fonte sola).
-   Se un giorno si vuole punk-records, va riscritto per leggere l'albero git + i file
-   per-carta. Ogni carta punk-records: `id`, `name`, `colors`, `rarity`, `img_full_url`.
+5. **`card_database.py`/punk-records: schema — RISOLTO (sessione "anagrafica DB").**
+   Il repo reale (`buhbbl/punk-records`, branch `main`) usa cartelle-lingua ESTESE
+   (`english`, non `en`; `french`, `japanese`…). Dentro `english/`: `packs.json`
+   (dict {pack_id:{title_parts:{label:"OP-01"}}}), `cards/<pack_id>/<CODICE>.json`
+   (una carta/file, con `img_full_url`), e soprattutto **`index/cards_by_id.json`**
+   = TUTTE le carte in UN file {codice:{...}} (~4571 record, ~1.2 MB, SENZA immagine).
+   `card_database.py` ora scarica l'indice (1 fetch) + `packs.json` (1 fetch) e
+   RICOSTRUISCE l'immagine dal pattern ufficiale fisso
+   `https://en.onepiece-cardgame.com/images/cardlist/card/<codice>.png`. ⚠️ Insidie:
+   (a) le VARIANTI hanno suffisso `_pN` **minuscolo** nell'URL immagine (il codice
+   uppercase `_P1` dà 404) → l'immagine si costruisce dal `card_id` ORIGINALE; (b) i
+   `name` arrivano con entità HTML (`&amp;`, `&#39;`) → `html.unescape`. Ogni carta
+   punk-records: `card_id`, `name`, `pack_id`, `rarity`, `colors` (lista), `category`.
+   NB: tcgapi.dev resta la fonte PREZZI (punk-records non ha prezzi).
 
 ## ✅ Stato
 Web app **DEPLOYATA su Vercel** (`https://one-piece-bot.vercel.app`, Root Directory=`web`):
@@ -328,3 +335,46 @@ Da verificare/completare in produzione:
   409) e lato UI (blocco toggle + avviso + contatore X/3).
 - ⚠️ **Persistenza**: le carte in collezione stanno su Supabase, NON su tcgapi → restano
   visibili col loro prezzo anche a rate limit esaurito (il GET non chiama tcgapi).
+
+## 🛠️ Sessione: anagrafica DB (punk-records), raccoglitore, ricerca a costo zero
+Obiettivo: azzerare le chiamate tcgapi nella ricerca e trasformare la collezione in un
+vero "raccoglitore". Verità sui numeri: One Piece TCG ha ~2.634 carte BASE + ~1.937
+varianti = **4.571 record** in **53 set** (tutte importate). Fonti esterne: ~2.886 = solo
+booster OP; Limitless elenca 51 set → il nostro dataset le copre TUTTE.
+- **Anagrafica DA DB (punk-records), non più tcgapi live.** `card_database.py` riscritto
+  (vedi insidia #5 RISOLTA): sincronizza 4571 carte su `carte` con 2 fetch. Girato dal
+  workflow settimanale; nuovi set presi in automatico.
+- **Ricerca a due livelli (economica):** `/api/cards?q=` di DEFAULT cerca nel **DB locale**
+  (zero costo, `daDb()` mappa la riga a `CartaLive` con prezzo null, ordina per rilevanza).
+  Il prezzo tcgapi si prende **SOLO al click "Colleziona/Aggiungi"**: `assicuraCarta` fa
+  UNA chiamata `cartaPerCodice` MIRATA sul number esatto (1 richiesta). Se il DB non trova
+  → bottone **"🌐 Cerca online (tcgapi)"** = `/api/cards?live=1`. Hook: `cercaCarte` (DB) +
+  `cercaOnline` (tcgapi); `cercaLive` RINOMINATO. Vale collezione E watchlist.
+- **RACCOGLITORE (`components/Binder.tsx`):** album porta-carte 3×3 = 9 carte/facciata.
+  DESKTOP (≥768px) = due facciate affiancate (18 carte, con "rilegatura" centrale);
+  MOBILE = una facciata (9). Sfoglio con animazione `binder-anim-next/prev` (slide
+  coerente col verso). Toggle ordinamento **💎 Valore / 🔢 Numerazione** (`chiaveNumero`
+  ordina per set-prefix + numero + suffisso variante). Barra **"trova → salta a pagina"**:
+  calcola la facciata della carta e ci va, evidenziandola (`binder-card--found`). Stili in
+  `globals.css` (`.binder*`). Sostituisce la vecchia lista "Top 5".
+- **`CartaModal` ora è azionabile:** props opz. `onQuantita/onPrezzo/onRimuovi/onEsito`.
+  Il click su una carta del binder apre il modal con quantità/💲prezzo/🗑️rimuovi. ⚠️ La
+  pagina passa `dettaglioCodice` (string) e deriva la voce FRESCA da `c.collezione`, così
+  il modal riflette subito gli aggiornamenti (non un oggetto congelato).
+- **Watchlist da collezione:** selettore "📚 scegli dalla collezione" (carte già nel DB,
+  non ancora in watchlist) → aggiunta a ZERO chiamate esterne.
+- **Foto manuale via URL:** `InserisciManuale` ha già il campo URL; aggiunta l'**anteprima
+  live** della foto incollata (grigia se il link non è un'immagine).
+- **Vinted ottimizzato (`vinted_source.py`):** (1) il **CODICE** carta è il segnale
+  primario nel `search_text` (il nome è ambiguo); (2) filtro categoria opz.
+  `VINTED_CATALOG_ID` (`catalog[]` nell'URL) per tagliare via/gadget — LASCIATO VUOTO di
+  default (per 3 carte cercate per codice il rumore è già minimo, e l'id è fragile/per-paese);
+  (3) **URL Vinted PERSONALIZZATO per carta**: colonna `watchlist.vinted_url` + campo UI
+  (`<details>`), se presente `cerca_batch` la usa ESATTAMENTE così com'è. `main.py` passa
+  `vinted_url` alle carte preparate. ACTOR: confermato che **Turbo Scraper costa DI PIÙ**
+  (avvio $0.08 vs $0.02, per-risultato $0.0035 vs $0.002) → resta lo **Smart Scraper**.
+- **Verificato su Supabase reale:** sync 4571 carte OK; POST collezione (upsert + prezzo)
+  e watchlist (con FK rispettata) scrivono/rileggono; build web pulita (17 route).
+- ⚠️ **Migrazione da applicare a mano** su Supabase (fatta dall'utente): `alter table
+  watchlist add column if not exists vinted_url text;` — senza, tutto ok tranne il salvataggio
+  dell'URL Vinted personalizzato.

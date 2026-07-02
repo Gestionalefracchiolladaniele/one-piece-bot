@@ -2,10 +2,26 @@
 
 import { useEffect } from 'react';
 import type { VoceCollezione } from '@/lib/types';
+import { AzioneBtn } from '@/components/AzioneBtn';
 
 // Pop-up dettaglio carta della collezione: immagine grande + info + prezzo/valore.
-// Chiude con la X, il click sullo sfondo o il tasto Esc.
-export function CartaModal({ voce, onClose }: { voce: VoceCollezione | null; onClose: () => void }) {
+// Se passate le azioni (onQuantita/onPrezzo/onRimuovi), mostra anche i controlli per
+// gestire la carta direttamente dal raccoglitore. Chiude con X, sfondo o Esc.
+export function CartaModal({
+  voce,
+  onClose,
+  onQuantita,
+  onPrezzo,
+  onRimuovi,
+  onEsito,
+}: {
+  voce: VoceCollezione | null;
+  onClose: () => void;
+  onQuantita?: (codice: string, quantita: number) => void;
+  onPrezzo?: (codice: string) => Promise<string>;
+  onRimuovi?: (codice: string) => void;
+  onEsito?: (msg: string | null) => void;
+}) {
   useEffect(() => {
     if (!voce) return;
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
@@ -74,6 +90,40 @@ export function CartaModal({ voce, onClose }: { voce: VoceCollezione | null; onC
           </div>
 
           <p className="mt-3 text-[11px] text-on-card-low">Prezzo: stima mercato USA (tcgapi/TCGPlayer).</p>
+
+          {/* Azioni (solo se fornite dal chiamante: gestione dalla collezione) */}
+          {(onQuantita || onPrezzo || onRimuovi) && (
+            <div className="mt-4 border-t border-border-card pt-3">
+              {onQuantita && (
+                <label className="mb-3 flex items-center gap-2 text-sm text-on-card-mid">
+                  Quantità posseduta
+                  <input
+                    className="field w-[80px]"
+                    type="number"
+                    min={1}
+                    value={voce.quantita}
+                    onChange={(e) => onQuantita(voce.codice, Math.max(1, Number(e.target.value)))}
+                  />
+                </label>
+              )}
+              <div className="flex flex-wrap gap-2">
+                {onPrezzo && (
+                  <AzioneBtn
+                    className="btn btn-sm flex-1"
+                    onClick={() => onPrezzo(voce.codice)}
+                    onEsito={onEsito}
+                  >
+                    💲 Aggiorna prezzo
+                  </AzioneBtn>
+                )}
+                {onRimuovi && (
+                  <button className="btn btn-danger btn-sm flex-1" onClick={() => onRimuovi(voce.codice)}>
+                    🗑️ Rimuovi
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>
