@@ -35,9 +35,15 @@ export async function GET(req: Request) {
   const live = url.searchParams.get('live') === '1';
   if (q.length < 2) return NextResponse.json({ carte: [] });
 
-  // Ricerca live tcgapi (fallback esplicito, con prezzo).
+  // Ricerca live tcgapi (fallback esplicito, con prezzo). Filtri opzionali
+  // (rarity/printing) per mirare la ricerca → meno rumore, sempre 1 richiesta.
   if (live) {
-    const carte = await cercaLive(q, 100);
+    const rarity = (url.searchParams.get('rarity') ?? '').trim();
+    const printing = (url.searchParams.get('printing') ?? '').trim();
+    const carte = await cercaLive(q, 100, {
+      rarity: rarity || undefined,
+      printing: printing || undefined,
+    });
     return NextResponse.json({ carte, live: true });
   }
 

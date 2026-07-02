@@ -7,6 +7,7 @@ import { CartaModal } from '@/components/CartaModal';
 import { RisultatiRicerca } from '@/components/RisultatiRicerca';
 import { InserisciManuale } from '@/components/InserisciManuale';
 import { Binder } from '@/components/Binder';
+import { RARITA_TCG } from '@/lib/useClaupiece';
 import type { VoceCollezione } from '@/lib/types';
 
 export default function CollezionePage() {
@@ -17,6 +18,7 @@ export default function CollezionePage() {
   const [cercando, setCercando] = useState(false);
   const [cercato, setCercato] = useState(false); // true dopo la prima ricerca (per il "nessun risultato")
   const [online, setOnline] = useState(false); // true se i risultati vengono da tcgapi
+  const [rarFiltro, setRarFiltro] = useState(''); // filtro rarità per la ricerca tcgapi
   const [msg, setMsg] = useState<string | null>(null);
   const [manuale, setManuale] = useState(false); // pop-up inserimento manuale
   // Codice della carta aperta nel pop-up di dettaglio (deriviamo la voce FRESCA dallo
@@ -37,14 +39,15 @@ export default function CollezionePage() {
     finally { setCercando(false); }
   }
 
-  // Fallback ONLINE (tcgapi, 1 richiesta) quando il DB non trova la carta.
+  // Fallback ONLINE (tcgapi, 1 richiesta) quando il DB non trova la carta. Con filtro
+  // rarità opzionale per mirare (es. solo Leader / solo Alt Art) → meno rumore.
   async function cercaWeb() {
     const q = query.trim();
     if (q.length < 2) return;
     setCercando(true);
     setCercato(true);
     setOnline(true);
-    try { setRisultati(await cercaOnline(q)); }
+    try { setRisultati(await cercaOnline(q, { rarity: rarFiltro || undefined })); }
     catch { setRisultati([]); }
     finally { setCercando(false); }
   }
@@ -90,32 +93,64 @@ export default function CollezionePage() {
       <section className="card mb-6 p-4 sm:p-5">
         <h2 className="mb-1 font-display text-base text-on-card-high sm:text-lg">➕ Aggiungi una carta</h2>
         <p className="mb-3 text-xs text-on-card-low">
-          Scrivi il <strong>nome</strong> e premi <strong>Cerca</strong> (o Invio): la ricerca è
-          nel database locale delle carte (gratis, istantanea). Al click su “+ Colleziona” prendiamo
-          il <strong>prezzo esatto</strong> di quella carta (1 richiesta). I risultati mostrano
-          codice/set/rarità per scegliere la variante.
+          Scrivi il <strong>nome</strong> e premi <strong>🔍 Cerca</strong>: cerca nel database
+          locale (gratis, istantaneo). Se qui non c’è, premi <strong>🌐 tcgapi</strong> per cercarla
+          online col prezzo (1 richiesta del limite giornaliero). Al click su “+ Colleziona”
+          prendiamo comunque il <strong>prezzo esatto</strong> di quella carta.
         </p>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <input
-            className="field flex-1"
+            className="field min-w-[160px] flex-1"
             placeholder="Nome carta (es. Luffy, Zoro, Nami)…"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={(e) => { if (e.key === 'Enter') cerca(); }}
           />
+          {/* Bottone 1: ricerca nel DB locale (gratis) */}
           <button className="btn btn-accent shrink-0" onClick={cerca} disabled={cercando || query.trim().length < 2}>
-            {cercando ? '…' : '🔍 Cerca'}
+            {cercando && !online ? '…' : '🔍 Cerca'}
+          </button>
+          {/* Bottone 2: ricerca online tcgapi (con prezzo). Separato per NON confondere
+              e per spendere le richieste solo quando serve davvero. */}
+          <button
+            className="btn shrink-0"
+            style={{ background: '#f0ecfa', color: 'var(--accent-strong)' }}
+            onClick={cercaWeb}
+            disabled={cercando || query.trim().length < 2}
+            title="Cerca online su tcgapi (usa 1 richiesta del limite giornaliero)"
+          >
+            {cercando && online ? '…' : '🌐 tcgapi'}
           </button>
         </div>
-        {online && risultati.length > 0 && (
-          <p className="mt-2 text-[11px] text-on-card-low">Risultati da tcgapi (con prezzo).</p>
+        {/* Filtro rarità per la ricerca tcgapi: mira la ricerca online (es. solo Leader
+            o solo Alternate Art) per ottenere subito la variante giusta. */}
+        <details className="mt-2">
+          <summary className="cursor-pointer text-[11px] font-semibold text-[color:var(--accent-strong)]">
+            ⚙️ Filtra la ricerca tcgapi (rarità)
+          </summary>
+          <select
+            className="field mt-2 text-[13px]"
+            value={rarFiltro}
+            onChange={(e) => setRarFiltro(e.target.value)}
+          >
+            <option value="">Tutte le rarità</option>
+            {RARITA_TCG.map((r) => <option key={r} value={r}>{r}</option>)}
+          </select>
+          <p className="mt-1 text-[10px] text-on-card-low">
+            Vale solo per il bottone <strong>🌐 tcgapi</strong>. Utile per isolare Leader,
+            Alternate Art (Special) o le rare.
+          </p>
+        </details>
+        {cercato && risultati.length > 0 && (
+          <p className="mt-2 text-[11px] text-on-card-low">
+            {online ? '🌐 Risultati da tcgapi (con prezzo).' : `🔍 ${risultati.length} risultati dal database locale.`}
+          </p>
         )}
         {!cercando && cercato && risultati.length === 0 && (
           <p className="mt-2.5 text-[13px] text-on-card-low">
-            Nessuna carta trovata nel database per “{query.trim()}”.{' '}
-            <button onClick={cercaWeb} className="font-semibold text-[color:var(--accent-strong)] underline">
-              🌐 Cerca online (tcgapi)
-            </button>{' '}oppure{' '}
+            {online
+              ? <>Nessun risultato su tcgapi per “{query.trim()}”. Prova solo il nome, oppure </>
+              : <>Nessuna carta nel database per “{query.trim()}”. Prova <button onClick={cercaWeb} className="font-semibold text-[color:var(--accent-strong)] underline">🌐 tcgapi</button> oppure </>}
             <button onClick={() => setManuale(true)} className="font-semibold text-[color:var(--accent-strong)] underline">
               inseriscila a mano
             </button>.
@@ -147,7 +182,15 @@ export default function CollezionePage() {
             dell’album, ordinata per valore.
           </div>
         ) : (
-          <Binder voci={c.collezione} onApri={(v) => setDettaglioCodice(v.codice)} />
+          <Binder
+            voci={c.collezione}
+            onApri={(v) => setDettaglioCodice(v.codice)}
+            onAggiornaPrezzi={async (codici) => {
+              const esito = await c.aggiornaPrezziCarte(codici);
+              setMsg(esito);
+              return esito;
+            }}
+          />
         )}
       </section>
 

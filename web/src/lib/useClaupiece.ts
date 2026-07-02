@@ -117,10 +117,14 @@ export function useClaupiece() {
   }, [ricaricaWatch]);
 
   // Fallback ONLINE: cerca su tcgapi (con prezzo). Usato solo quando il DB non trova
-  // la carta (bottone "Cerca online"). Costa 1 richiesta del budget 100/giorno.
-  const cercaOnline = useCallback(async (q: string): Promise<CartaLive[]> => {
+  // la carta (bottone "🌐 tcgapi"). Costa 1 richiesta del budget 100/giorno. Filtri
+  // opzionali (rarity/printing) per mirare la ricerca online → risultato più preciso.
+  const cercaOnline = useCallback(async (q: string, filtri?: { rarity?: string; printing?: string }): Promise<CartaLive[]> => {
     if (q.trim().length < 2) return [];
-    const { carte } = await api<{ carte: CartaLive[] }>(`/api/cards?live=1&q=${encodeURIComponent(q.trim())}`);
+    const params = new URLSearchParams({ live: '1', q: q.trim() });
+    if (filtri?.rarity) params.set('rarity', filtri.rarity);
+    if (filtri?.printing) params.set('printing', filtri.printing);
+    const { carte } = await api<{ carte: CartaLive[] }>(`/api/cards?${params.toString()}`);
     return carte;
   }, []);
 
@@ -214,6 +218,18 @@ export function useClaupiece() {
     return r.aggiornate ? `Prezzo di ${codice} aggiornato.` : `Nessun prezzo trovato per ${codice}.`;
   }, [ricaricaColl]);
 
+  // Aggiorna il prezzo SOLO delle carte selezionate (1 richiesta tcgapi per carta) →
+  // chiamate mirate, si spende solo su ciò che serve (budget 100/giorno).
+  const aggiornaPrezziCarte = useCallback(async (codici: string[]): Promise<string> => {
+    if (!codici.length) return 'Nessuna carta selezionata.';
+    const r = await api<{ aggiornate: number; totali: number }>(
+      `/api/collezione/prezzi?codici=${encodeURIComponent(codici.join(','))}`,
+      { method: 'POST' },
+    );
+    await ricaricaColl();
+    return `Prezzi aggiornati: ${r.aggiornate}/${r.totali} carte selezionate.`;
+  }, [ricaricaColl]);
+
   const avviaCaccia = useCallback(async (): Promise<string> => {
     const r = await api<{ ok: boolean; msg: string }>('/api/actions', {
       method: 'POST',
@@ -239,13 +255,19 @@ export function useClaupiece() {
     ricarica, cercaCarte, cercaOnline, aggiungiWatch, aggiornaWatch, rimuoviWatch,
     aggiungiColl, aggiornaColl, rimuoviColl,
     salvaFinestra, togglePausa,
-    aggiornaPrezziColl, aggiornaPrezzoCarta, avviaCaccia, inviaRiepilogo,
+    aggiornaPrezziColl, aggiornaPrezzoCarta, aggiornaPrezziCarte, avviaCaccia, inviaRiepilogo,
   };
 }
 
 export function stelle(n: number | null): string {
   return '⭐'.repeat(Math.max(0, Math.min(5, n ?? 0)));
 }
+
+// Rarità One Piece TCG (come le etichetta tcgapi) per il filtro della ricerca online.
+export const RARITA_TCG = [
+  'Leader', 'Common', 'Uncommon', 'Rare', 'SuperRare', 'SecretRare',
+  'Special', 'TreasureRare', 'Promo',
+];
 
 // URL immagine sicuro per il browser. Le immagini ufficiali One Piece bloccano il
 // cross-origin (CORP: same-site) → le facciamo passare dal nostro proxy /api/img,

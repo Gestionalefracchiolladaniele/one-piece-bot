@@ -30,9 +30,12 @@ function chiaveNumero(codice: string): [string, number, string] {
 export function Binder({
   voci,
   onApri,
+  onAggiornaPrezzi,
 }: {
   voci: VoceCollezione[];
   onApri: (v: VoceCollezione) => void;
+  // Aggiorna il prezzo SOLO delle carte selezionate (chiamate tcgapi mirate).
+  onAggiornaPrezzi?: (codici: string[]) => Promise<string>;
 }) {
   const [ordine, setOrdine] = useState<Ordine>('valore');
   const [cerca, setCerca] = useState('');
@@ -40,7 +43,25 @@ export function Binder({
   const [verso, setVerso] = useState<'next' | 'prev'>('next');
   const [trovato, setTrovato] = useState<string | null>(null); // codice evidenziato
   const [duePagine, setDuePagine] = useState(false);
+  const [selezione, setSelezione] = useState<Set<string>>(new Set()); // codici spuntati
+  const [modoSel, setModoSel] = useState(false); // modalità selezione attiva
+  const [aggiornando, setAggiornando] = useState(false);
   const animRef = useRef(0);
+
+  function toggleSel(codice: string) {
+    setSelezione((prev) => {
+      const next = new Set(prev);
+      if (next.has(codice)) next.delete(codice); else next.add(codice);
+      return next;
+    });
+  }
+
+  async function aggiornaSelezionate() {
+    if (!onAggiornaPrezzi || !selezione.size) return;
+    setAggiornando(true);
+    try { await onAggiornaPrezzi(Array.from(selezione)); setSelezione(new Set()); }
+    finally { setAggiornando(false); }
+  }
 
   // Desktop (≥768px) → due facciate; mobile → una. Reattivo al resize.
   useEffect(() => {
@@ -120,6 +141,32 @@ export function Binder({
 
   return (
     <div>
+      {/* Barra selezione multipla: spunta le carte e aggiorna SOLO quelle (mirato). */}
+      {onAggiornaPrezzi && (
+        <div className="mb-3 flex flex-wrap items-center gap-2 rounded-lg border border-border-card bg-[#f7f5fc] p-2">
+          <button
+            className={`btn btn-sm ${modoSel ? 'btn-accent' : ''}`}
+            style={modoSel ? undefined : { background: '#fff', color: 'var(--accent-strong)' }}
+            onClick={() => { setModoSel((s) => !s); setSelezione(new Set()); }}
+          >
+            {modoSel ? '✓ Selezione attiva' : '☑️ Seleziona carte'}
+          </button>
+          {modoSel && (
+            <>
+              <span className="text-xs text-on-card-mid">{selezione.size} selezionate</span>
+              <button
+                className="btn btn-accent btn-sm"
+                onClick={aggiornaSelezionate}
+                disabled={!selezione.size || aggiornando}
+              >
+                {aggiornando ? '…' : `💲 Aggiorna prezzi (${selezione.size})`}
+              </button>
+              <span className="text-[10px] text-on-card-low">1 richiesta tcgapi per carta selezionata</span>
+            </>
+          )}
+        </div>
+      )}
+
       {/* Controlli: ordinamento + ricerca salta-a-pagina */}
       <div className="mb-3 flex flex-wrap items-center gap-2">
         <div className="flex overflow-hidden rounded-full border border-border-card">
@@ -164,8 +211,9 @@ export function Binder({
                   <div key={j} className={`binder-slot ${v ? '' : 'binder-slot--empty'}`}>
                     {v && (
                       <div
-                        className={`binder-card ${trovato === v.codice ? 'binder-card--found' : ''}`}
-                        onClick={() => onApri(v)}
+                        className={`binder-card ${trovato === v.codice ? 'binder-card--found' : ''} ${modoSel && selezione.has(v.codice) ? 'binder-card--sel' : ''}`}
+                        // In modalità selezione il click SPUNTA; altrimenti apre il dettaglio.
+                        onClick={() => (modoSel ? toggleSel(v.codice) : onApri(v))}
                         title={`${v.carta?.nome || v.codice}${v.prezzo_usd != null ? ` · $${v.valore_usd?.toFixed(2)}` : ''}`}
                       >
                         {v.carta?.immagine_url ? (
@@ -181,6 +229,18 @@ export function Binder({
                         {v.quantita > 1 && (
                           <span className="absolute right-1 top-1 rounded-full bg-[color:var(--accent-strong)] px-1.5 py-0.5 text-[10px] font-bold text-white">
                             ×{v.quantita}
+                          </span>
+                        )}
+                        {/* Checkbox di selezione (solo in modalità selezione) */}
+                        {modoSel && (
+                          <span
+                            className={`absolute left-1 top-1 flex h-5 w-5 items-center justify-center rounded-md border-2 text-[11px] font-bold ${
+                              selezione.has(v.codice)
+                                ? 'border-white bg-[color:var(--accent-strong)] text-white'
+                                : 'border-white/80 bg-black/30 text-transparent'
+                            }`}
+                          >
+                            ✓
                           </span>
                         )}
                       </div>

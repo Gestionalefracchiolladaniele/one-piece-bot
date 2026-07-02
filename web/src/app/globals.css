@@ -338,6 +338,15 @@ a {
   border-radius: 10px;
   animation: cp-found-pulse 1.2s ease 2;
 }
+/* carta selezionata (modalità selezione multipla) */
+.binder-card--sel {
+  outline: 3px solid var(--accent-strong);
+  outline-offset: -3px;
+  border-radius: 10px;
+}
+.binder-card--sel img {
+  filter: brightness(0.82);
+}
 @keyframes cp-found-pulse {
   0%, 100% { box-shadow: 0 0 0 rgba(240, 180, 41, 0); }
   50% { box-shadow: 0 0 20px rgba(240, 180, 41, 0.7); }

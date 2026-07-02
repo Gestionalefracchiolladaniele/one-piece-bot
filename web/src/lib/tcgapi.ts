@@ -47,11 +47,26 @@ function normalizza(card: any): CartaLive | null {
 // Riconosce un codice carta One Piece (es. OP01-025, ST30-001, EB01-006).
 const RE_CODICE = /^[A-Z]{1,4}\d{0,2}-\d{1,3}$/i;
 
+// Filtri opzionali della ricerca tcgapi (parametri REALI dell'endpoint /search,
+// verificati sulla doc: `rarity`, `printing`). Servono a MIRARE la ricerca online
+// (es. solo carte "Leader" o solo "Alternate Art") → meno rumore, risultato preciso,
+// sempre 1 sola richiesta. Vuoti = ricerca larga come prima.
+export type FiltriTcg = {
+  rarity?: string;   // es. Leader, SuperRare, SecretRare, Special (Alt Art)…
+  printing?: string; // es. Foil / Normal
+};
+
 // Chiamata grezza a /search (una pagina). Ritorna le carte normalizzate.
-async function rawSearch(q: string, perPage: number): Promise<CartaLive[]> {
-  const url =
-    `${env.tcgapiBase}/search?game=${encodeURIComponent(env.tcgapiGameSlug)}` +
-    `&q=${encodeURIComponent(q)}&per_page=${perPage}&page=1`;
+async function rawSearch(q: string, perPage: number, filtri?: FiltriTcg): Promise<CartaLive[]> {
+  const params = new URLSearchParams({
+    game: env.tcgapiGameSlug,
+    q,
+    per_page: String(perPage),
+    page: '1',
+  });
+  if (filtri?.rarity) params.set('rarity', filtri.rarity);
+  if (filtri?.printing) params.set('printing', filtri.printing);
+  const url = `${env.tcgapiBase}/search?${params.toString()}`;
   const r = await fetch(url, {
     headers: { 'X-API-Key': env.tcgapiKey, Accept: 'application/json' },
     cache: 'no-store', // i prezzi cambiano; il budget è per-giorno, non per-chiamata
@@ -61,16 +76,15 @@ async function rawSearch(q: string, perPage: number): Promise<CartaLive[]> {
   return ((j?.data ?? []) as any[]).map(normalizza).filter((c): c is CartaLive => c != null);
 }
 
-// Cerca carte per NOME (tcgapi cerca solo nel nome, min 2 caratteri). Se l'utente
-// digita un codice esatto (es. OP05-067), tcgapi non lo trova per `number`: proviamo
-// comunque come testo (becca le carte che hanno il codice nel nome) e teniamo solo
-// il match esatto. Per nomi normali, ricerca testuale diretta ordinata per rilevanza.
-// Ritorna [] se la key manca o la chiamata fallisce (la UI mostra "nessun risultato").
-export async function cercaLive(q: string, perPage = 100): Promise<CartaLive[]> {
+// Cerca carte per NOME (tcgapi cerca solo nel nome, min 2 caratteri), con filtri
+// opzionali (rarity/printing) per mirare la ricerca online. Se l'utente digita un
+// codice esatto (es. OP05-067), teniamo solo il match esatto sul number. Per nomi
+// normali, ricerca testuale ordinata per prezzo. Ritorna [] se la key manca/fallisce.
+export async function cercaLive(q: string, perPage = 100, filtri?: FiltriTcg): Promise<CartaLive[]> {
   const query = q.trim();
   if (!env.tcgapiKey || query.length < 2) return [];
   try {
-    const risultati = await rawSearch(query, perPage);
+    const risultati = await rawSearch(query, perPage, filtri);
     // Se era un codice, restringi al number esatto (se qualcuno matcha davvero).
     if (RE_CODICE.test(query)) {
       const cod = query.toUpperCase();

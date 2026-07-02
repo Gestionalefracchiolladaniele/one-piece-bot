@@ -378,3 +378,30 @@ booster OP; Limitless elenca 51 set → il nostro dataset le copre TUTTE.
 - ⚠️ **Migrazione da applicare a mano** su Supabase (fatta dall'utente): `alter table
   watchlist add column if not exists vinted_url text;` — senza, tutto ok tranne il salvataggio
   dell'URL Vinted personalizzato.
+
+## 🛠️ Sessione: immagini, due bottoni ricerca, filtri tcgapi, selezione multipla
+- **FIX immagini carte (CORP):** le immagini ufficiali `en.onepiece-cardgame.com`
+  inviano `Cross-Origin-Resource-Policy: same-site` → il browser le BLOCCA su un altro
+  dominio (vercel.app) = icona rotta (curl non lo vede, solo il browser). Fix: route
+  **`/api/img?u=<url>`** (proxy server-side, host allowlist onepiece-cardgame.com, cache
+  30gg) + helper **`imgSrc()`** in `useClaupiece.ts` applicato a TUTTI gli `<img>` delle
+  carte (ricerca/binder/watchlist/modal). Le foto manuali da altri domini restano dirette.
+- **DUE bottoni di ricerca separati** (collezione + watchlist): **🔍 Cerca** (DB locale,
+  gratis) e **🌐 tcgapi** (online, con prezzo, 1 richiesta). Separati apposta per non
+  confondere e spendere le richieste solo quando serve. Hook: `cercaCarte` (DB) /
+  `cercaOnline` (tcgapi). Messaggio d'esito dice la fonte + il conteggio.
+- **Filtri ricerca tcgapi (ottimizzazione):** parametri REALI verificati sulla doc
+  (`rarity`, `printing`; NON esiste un filtro "categoria" → si fa via testo). `cercaLive`
+  accetta `FiltriTcg`, la route `/api/cards?live=1&rarity=…` li passa. UI: `<details>`
+  "⚙️ Filtra la ricerca tcgapi" con select rarità (`RARITA_TCG` in `useClaupiece.ts`).
+  Vale SOLO per il bottone tcgapi → mira la ricerca (es. solo Leader/Alt Art) restando
+  1 richiesta.
+- **Pop-up anteprima anche in RICERCA:** click su immagine/nome nei `RisultatiRicerca`
+  apre un modal (immagine grande + codice/set/rarità/printing + prezzo + bottone aggiungi).
+  Prima il dettaglio si apriva solo dal raccoglitore. Placeholder 🃏 se manca l'immagine.
+- **SELEZIONE MULTIPLA nel raccoglitore (chiamate mirate):** `Binder` ha modalità
+  "☑️ Seleziona carte" → spunta le carte (checkbox visiva, `.binder-card--sel`) e
+  "💲 Aggiorna prezzi (N)" aggiorna SOLO quelle. Route `/api/collezione/prezzi?codici=A,B,C`
+  + hook `aggiornaPrezziCarte(codici)`. ⚠️ Resta 1 richiesta tcgapi PER carta selezionata:
+  la selezione serve a NON aggiornare tutta la collezione (spreco del budget 100/giorno).
+  In modalità selezione il click SPUNTA (non apre il dettaglio).
