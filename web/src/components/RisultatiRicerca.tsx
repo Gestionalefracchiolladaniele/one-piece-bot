@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import { imgSrc, type CartaLive } from '@/lib/useClaupiece';
 
 const PER_PAGINA = 10;
@@ -20,54 +20,19 @@ export function RisultatiRicerca({
   onAggiungi: (c: CartaLive) => void;
   testoBottone: string;
 }) {
-  const [rarita, setRarita] = useState<string>(''); // '' = tutte
   const [pagina, setPagina] = useState(1);
   const [anteprima, setAnteprima] = useState<CartaLive | null>(null); // pop-up dettaglio
 
-  // Rarità disponibili tra i risultati (per i bottoni di filtro).
-  const rarita_disponibili = useMemo(() => {
-    const set = new Set<string>();
-    for (const c of carte) if (c.rarita) set.add(c.rarita);
-    return Array.from(set);
-  }, [carte]);
-
-  // Filtra per rarità selezionata.
-  const filtrate = useMemo(
-    () => (rarita ? carte.filter((c) => c.rarita === rarita) : carte),
-    [carte, rarita],
-  );
-
-  const totPagine = Math.max(1, Math.ceil(filtrate.length / PER_PAGINA));
-  const pag = Math.min(pagina, totPagine); // clamp se cambia il filtro
-  const visibili = filtrate.slice((pag - 1) * PER_PAGINA, pag * PER_PAGINA);
+  // Il filtro per rarità NON vive più qui: sta nel pannello "⚙️ Filtri" della barra
+  // di ricerca (categoria + rarità), così non è duplicato. Qui solo lista + paginazione.
+  const totPagine = Math.max(1, Math.ceil(carte.length / PER_PAGINA));
+  const pag = Math.min(pagina, totPagine);
+  const visibili = carte.slice((pag - 1) * PER_PAGINA, pag * PER_PAGINA);
 
   if (!carte.length) return null;
 
   return (
     <div className="mt-3">
-      {/* Filtro rarità */}
-      {rarita_disponibili.length > 1 && (
-        <div className="mb-3 flex flex-wrap gap-1.5">
-          <button
-            onClick={() => { setRarita(''); setPagina(1); }}
-            className={`btn btn-sm ${rarita === '' ? 'btn-accent' : ''}`}
-            style={rarita === '' ? undefined : { background: '#f0ecfa', color: 'var(--accent-strong)' }}
-          >
-            Tutte ({carte.length})
-          </button>
-          {rarita_disponibili.map((r) => (
-            <button
-              key={r}
-              onClick={() => { setRarita(r); setPagina(1); }}
-              className={`btn btn-sm ${rarita === r ? 'btn-accent' : ''}`}
-              style={rarita === r ? undefined : { background: '#f0ecfa', color: 'var(--accent-strong)' }}
-            >
-              {r}
-            </button>
-          ))}
-        </div>
-      )}
-
       {/* Lista carte della pagina corrente */}
       <ul className="grid list-none gap-2 p-0">
         {visibili.map((card) => (
