@@ -69,10 +69,14 @@ export function useClaupiece() {
 
   // ── Ricerca carte ──
   // DEFAULT: cerca nell'anagrafica LOCALE (~4500 carte da punk-records). Zero costo,
-  // zero chiamate esterne. Ritorna CartaLive (prezzo null: verrà preso all'aggiunta).
-  const cercaCarte = useCallback(async (q: string): Promise<CartaLive[]> => {
+  // zero chiamate esterne. Filtri opzionali (categoria/rarità). Ritorna CartaLive
+  // (prezzo null: verrà preso all'aggiunta).
+  const cercaCarte = useCallback(async (q: string, filtri?: FiltriRicerca): Promise<CartaLive[]> => {
     if (q.trim().length < 2) return [];
-    const { carte } = await api<{ carte: CartaLive[] }>(`/api/cards?q=${encodeURIComponent(q.trim())}`);
+    const params = new URLSearchParams({ q: q.trim() });
+    if (filtri?.categoria) params.set('categoria', filtri.categoria);
+    if (filtri?.rarita) params.set('rarita', filtri.rarita);
+    const { carte } = await api<{ carte: CartaLive[] }>(`/api/cards?${params.toString()}`);
     return carte;
   }, []);
 
@@ -118,12 +122,12 @@ export function useClaupiece() {
 
   // Fallback ONLINE: cerca su tcgapi (con prezzo). Usato solo quando il DB non trova
   // la carta (bottone "🌐 tcgapi"). Costa 1 richiesta del budget 100/giorno. Filtri
-  // opzionali (rarity/printing) per mirare la ricerca online → risultato più preciso.
-  const cercaOnline = useCallback(async (q: string, filtri?: { rarity?: string; printing?: string }): Promise<CartaLive[]> => {
+  // opzionali (categoria/rarità) per mirare la ricerca online → risultato più preciso.
+  const cercaOnline = useCallback(async (q: string, filtri?: FiltriRicerca): Promise<CartaLive[]> => {
     if (q.trim().length < 2) return [];
     const params = new URLSearchParams({ live: '1', q: q.trim() });
-    if (filtri?.rarity) params.set('rarity', filtri.rarity);
-    if (filtri?.printing) params.set('printing', filtri.printing);
+    if (filtri?.categoria) params.set('categoria', filtri.categoria);
+    if (filtri?.rarita) params.set('rarita', filtri.rarita);
     const { carte } = await api<{ carte: CartaLive[] }>(`/api/cards?${params.toString()}`);
     return carte;
   }, []);
@@ -268,6 +272,13 @@ export function stelle(n: number | null): string {
 export const RARITA_TCG = [
   'Leader', 'SecretRare', 'SuperRare', 'Special', 'TreasureRare', 'Rare', 'Uncommon', 'Common',
 ];
+
+// Categorie One Piece TCG (il TIPO di carta nel gioco) — diverse dalla rarità.
+// Sono i valori reali presenti nel DB (campo `tipo`). DON!! non è collezionabile.
+export const CATEGORIE_TCG = ['Leader', 'Character', 'Event', 'Stage'];
+
+// Filtri opzionali della ricerca (categoria + rarità), condivisi tra le pagine.
+export type FiltriRicerca = { categoria?: string; rarita?: string };
 
 // URL immagine sicuro per il browser. Le immagini ufficiali One Piece bloccano il
 // cross-origin (CORP: same-site) → le facciamo passare dal nostro proxy /api/img,

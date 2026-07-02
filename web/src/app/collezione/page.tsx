@@ -18,7 +18,8 @@ export default function CollezionePage() {
   const [cercando, setCercando] = useState(false);
   const [cercato, setCercato] = useState(false); // true dopo la prima ricerca (per il "nessun risultato")
   const [online, setOnline] = useState(false); // true se i risultati vengono da tcgapi
-  const [rarFiltro, setRarFiltro] = useState(''); // filtro rarità per la ricerca tcgapi
+  const [catFiltro, setCatFiltro] = useState(''); // filtro categoria (tipo carta)
+  const [rarFiltro, setRarFiltro] = useState(''); // filtro rarità
   const [msg, setMsg] = useState<string | null>(null);
   const [manuale, setManuale] = useState(false); // pop-up inserimento manuale
   // Codice della carta aperta nel pop-up di dettaglio (deriviamo la voce FRESCA dallo
@@ -28,26 +29,28 @@ export default function CollezionePage() {
 
   // Ricerca di DEFAULT nell'anagrafica locale (~4500 carte). Zero costo, zero chiamate.
   // Il prezzo tcgapi si prende SOLO al click "Colleziona" (POST, per il number esatto).
+  const filtri = { categoria: catFiltro || undefined, rarita: rarFiltro || undefined };
+
   async function cerca() {
     const q = query.trim();
     if (q.length < 2) return;
     setCercando(true);
     setCercato(true);
     setOnline(false);
-    try { setRisultati(await cercaCarte(q)); }
+    try { setRisultati(await cercaCarte(q, filtri)); }
     catch { setRisultati([]); }
     finally { setCercando(false); }
   }
 
-  // Fallback ONLINE (tcgapi, 1 richiesta) quando il DB non trova la carta. Con filtro
-  // rarità opzionale per mirare (es. solo Leader / solo Alt Art) → meno rumore.
+  // Fallback ONLINE (tcgapi, 1 richiesta) quando il DB non trova la carta. Con filtri
+  // categoria/rarità per mirare (es. solo Leader / solo Alt Art) → meno rumore.
   async function cercaWeb() {
     const q = query.trim();
     if (q.length < 2) return;
     setCercando(true);
     setCercato(true);
     setOnline(true);
-    try { setRisultati(await cercaOnline(q, { rarity: rarFiltro || undefined })); }
+    try { setRisultati(await cercaOnline(q, filtri)); }
     catch { setRisultati([]); }
     finally { setCercando(false); }
   }
@@ -85,7 +88,13 @@ export default function CollezionePage() {
           >
             💲 Aggiorna prezzi
           </AzioneBtn>
-          <button className="btn btn-ghost btn-sm" onClick={() => c.ricarica()}>🔄 Ricarica</button>
+          <button
+            className="btn btn-sm"
+            style={{ background: '#f0ecfa', color: 'var(--accent-strong)' }}
+            onClick={() => c.ricarica()}
+          >
+            🔄 Ricarica
+          </button>
         </div>
       </section>
 
@@ -95,6 +104,8 @@ export default function CollezionePage() {
         <BarraRicerca
           query={query}
           onQuery={setQuery}
+          categoria={catFiltro}
+          onCategoria={setCatFiltro}
           rarita={rarFiltro}
           onRarita={setRarFiltro}
           onCercaDb={cerca}

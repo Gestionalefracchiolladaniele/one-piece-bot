@@ -33,27 +33,32 @@ export async function GET(req: Request) {
   const url = new URL(req.url);
   const q = (url.searchParams.get('q') ?? '').trim();
   const live = url.searchParams.get('live') === '1';
+  // Filtri comuni: categoria (tipo carta: Character/Event/Leader/Stage) e rarità.
+  const categoria = (url.searchParams.get('categoria') ?? '').trim();
+  const rarita = (url.searchParams.get('rarita') ?? '').trim();
   if (q.length < 2) return NextResponse.json({ carte: [] });
 
-  // Ricerca live tcgapi (fallback esplicito, con prezzo). Filtri opzionali
-  // (rarity/printing) per mirare la ricerca → meno rumore, sempre 1 richiesta.
+  // Ricerca live tcgapi (fallback esplicito, con prezzo). La rarità va all'API
+  // (parametro reale); la categoria NON è un parametro tcgapi → la filtriamo sui
+  // risultati (che riportano il tipo). Sempre 1 richiesta.
   if (live) {
-    const rarity = (url.searchParams.get('rarity') ?? '').trim();
-    const printing = (url.searchParams.get('printing') ?? '').trim();
-    const carte = await cercaLive(q, 100, {
-      rarity: rarity || undefined,
-      printing: printing || undefined,
-    });
+    let carte = await cercaLive(q, 100, { rarity: rarita || undefined });
+    if (categoria) {
+      carte = carte.filter((c) => (c.tipo ?? '').toLowerCase() === categoria.toLowerCase());
+    }
     return NextResponse.json({ carte, live: true });
   }
 
-  // Ricerca di default: anagrafica locale (nome o codice). Nessun costo esterno.
+  // Ricerca di default: anagrafica locale (nome o codice) + filtri categoria/rarità
+  // applicati direttamente in query. Nessun costo esterno.
   const sb = supabaseAdmin();
-  const { data, error } = await sb
+  let query = sb
     .from('carte')
     .select('codice, nome, set, rarita, tipo, immagine_url')
-    .or(`nome.ilike.%${q}%,codice.ilike.%${q}%`)
-    .limit(120);
+    .or(`nome.ilike.%${q}%,codice.ilike.%${q}%`);
+  if (categoria) query = query.eq('tipo', categoria);
+  if (rarita) query = query.eq('rarita', rarita);
+  const { data, error } = await query.limit(120);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
   // Ordina per rilevanza: match esatto/inizio-nome prima, poi per codice. Le varianti

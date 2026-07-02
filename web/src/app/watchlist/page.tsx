@@ -21,9 +21,12 @@ export default function WatchlistPage() {
   const [cercando, setCercando] = useState(false);
   const [cercato, setCercato] = useState(false);
   const [online, setOnline] = useState(false); // true se i risultati vengono da tcgapi
-  const [rarFiltro, setRarFiltro] = useState(''); // filtro rarità per la ricerca tcgapi
+  const [catFiltro, setCatFiltro] = useState(''); // filtro categoria (tipo carta)
+  const [rarFiltro, setRarFiltro] = useState(''); // filtro rarità
   const [avviso, setAvviso] = useState<string | null>(null);
   const [manuale, setManuale] = useState(false);
+
+  const filtri = { categoria: catFiltro || undefined, rarita: rarFiltro || undefined };
 
   // Ricerca di DEFAULT nell'anagrafica locale (~4500 carte). Zero costo, zero chiamate.
   async function cerca() {
@@ -32,19 +35,19 @@ export default function WatchlistPage() {
     setCercando(true);
     setCercato(true);
     setOnline(false);
-    try { setRisultati(await cercaCarte(q)); }
+    try { setRisultati(await cercaCarte(q, filtri)); }
     catch { setRisultati([]); }
     finally { setCercando(false); }
   }
 
-  // Fallback ONLINE (tcgapi, 1 richiesta) con filtro rarità opzionale per mirare.
+  // Fallback ONLINE (tcgapi, 1 richiesta) con filtri categoria/rarità per mirare.
   async function cercaWeb() {
     const q = query.trim();
     if (q.length < 2) return;
     setCercando(true);
     setCercato(true);
     setOnline(true);
-    try { setRisultati(await cercaOnline(q, { rarity: rarFiltro || undefined })); }
+    try { setRisultati(await cercaOnline(q, filtri)); }
     catch { setRisultati([]); }
     finally { setCercando(false); }
   }
@@ -89,6 +92,8 @@ export default function WatchlistPage() {
         <BarraRicerca
           query={query}
           onQuery={setQuery}
+          categoria={catFiltro}
+          onCategoria={setCatFiltro}
           rarita={rarFiltro}
           onRarita={setRarFiltro}
           onCercaDb={cerca}
@@ -156,7 +161,13 @@ export default function WatchlistPage() {
           <h2 className="font-display text-lg text-text-high">
             Monitorate ({c.watchlist.length}) · <span className={attive >= MAX_ATTIVE ? 'text-[color:var(--gold)]' : ''}>{attive}/{MAX_ATTIVE} attive</span>
           </h2>
-          <button className="btn btn-ghost btn-sm" onClick={() => c.ricarica()}>🔄 Ricarica</button>
+          <button
+            className="btn btn-sm"
+            style={{ background: '#f0ecfa', color: 'var(--accent-strong)' }}
+            onClick={() => c.ricarica()}
+          >
+            🔄 Ricarica
+          </button>
         </div>
         {c.caricando ? (
           <p className="text-text-low">Carico…</p>

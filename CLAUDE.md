@@ -405,3 +405,22 @@ booster OP; Limitless elenca 51 set → il nostro dataset le copre TUTTE.
   + hook `aggiornaPrezziCarte(codici)`. ⚠️ Resta 1 richiesta tcgapi PER carta selezionata:
   la selezione serve a NON aggiornare tutta la collezione (spreco del budget 100/giorno).
   In modalità selezione il click SPUNTA (non apre il dettaglio).
+
+## 🛠️ Sessione: UI ricerca pulita (BarraRicerca) + filtri categoria/rarità
+- **Componente `BarraRicerca`** condiviso (collezione + watchlist): elimina
+  l'affollamento. Riga 1 = input + 🔍 Cerca (DB) + 🌐 tcgapi. Riga 2 discreta =
+  bottone "⚙️ Filtri" (con badge conteggio) a sx + "✍️ Inserisci a mano" a dx.
+- **FILTRI a due righe** dentro il pannello: **Categoria** (Character/Event/Leader/
+  Stage — il TIPO di carta, campo `tipo`/DB) + **Rarità** (Leader/SecretRare/SuperRare/
+  Special/Rare/Uncommon/Common — quanto è rara). ⚠️ Categoria ≠ Rarità (stesso
+  personaggio Character esiste in più rarità); "Leader" appare in entrambe (è sia tipo
+  che rarità). Costanti `CATEGORIE_TCG`/`RARITA_TCG` in `useClaupiece.ts` (rarità REALI
+  del DB verificate). Valori tcgapi verificati: `rarity` è parametro API; **NON** esiste
+  un parametro `category` → la categoria si filtra sui RISULTATI (che riportano `tipo`).
+- **Filtri valgono per ENTRAMBE le ricerche:** DB (`.eq('tipo',…)`/`.eq('rarita',…)` in
+  query) e tcgapi (`rarity` all'API + categoria filtrata client-side sui risultati).
+  `/api/cards?categoria=…&rarita=…` (+`live=1`). Hook: `cercaCarte`/`cercaOnline`
+  accettano `FiltriRicerca {categoria?,rarita?}`.
+- **Fix colore bottone "🔄 Ricarica":** era `btn-ghost` (pensato per fondo viola) dentro
+  una card BIANCA → invisibile. Ora stile chiaro-viola (`#f0ecfa` + accent-strong), come
+  gli altri bottoni secondari nelle card. NB: `btn-ghost` resta OK nel Binder (fondo scuro).
