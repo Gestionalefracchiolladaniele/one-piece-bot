@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { useClaupiece, type CartaLive } from '@/lib/useClaupiece';
+import { useClaupiece, imgSrc, type CartaLive } from '@/lib/useClaupiece';
 import { RisultatiRicerca } from '@/components/RisultatiRicerca';
 import { InserisciManuale } from '@/components/InserisciManuale';
 import type { Watch } from '@/lib/types';
@@ -174,7 +174,7 @@ export default function WatchlistPage() {
                 <div className="flex flex-wrap items-center gap-3">
                   {w.carta?.immagine_url ? (
                     // eslint-disable-next-line @next/next/no-img-element
-                    <img src={w.carta.immagine_url} alt={w.carta.nome} width={44} height={62} className="rounded-md object-cover" />
+                    <img src={imgSrc(w.carta.immagine_url)} alt={w.carta.nome} width={44} height={62} className="rounded-md object-cover" />
                   ) : null}
                   <div className="min-w-[140px] flex-1">
                     <div className="font-semibold text-on-card-high">{w.carta?.nome || w.codice}</div>

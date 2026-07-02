@@ -2,6 +2,7 @@
 
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import type { VoceCollezione } from '@/lib/types';
+import { imgSrc } from '@/lib/useClaupiece';
 
 // ── Il RACCOGLITORE (binder) ────────────────────────────────────────────────
 // Album porta-carte a doppia pagina: 3×3 = 9 carte per facciata. Su desktop mostra
@@ -169,7 +170,7 @@ export function Binder({
                       >
                         {v.carta?.immagine_url ? (
                           // eslint-disable-next-line @next/next/no-img-element
-                          <img src={v.carta.immagine_url} alt={v.carta?.nome || v.codice} />
+                          <img src={imgSrc(v.carta.immagine_url)} alt={v.carta?.nome || v.codice} />
                         ) : (
                           <div className="flex h-full w-full flex-col items-center justify-center p-1 text-center">
                             <span className="text-2xl">🃏</span>

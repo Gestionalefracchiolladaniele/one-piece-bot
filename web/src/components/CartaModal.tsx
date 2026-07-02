@@ -3,6 +3,7 @@
 import { useEffect } from 'react';
 import type { VoceCollezione } from '@/lib/types';
 import { AzioneBtn } from '@/components/AzioneBtn';
+import { imgSrc } from '@/lib/useClaupiece';
 
 // Pop-up dettaglio carta della collezione: immagine grande + info + prezzo/valore.
 // Se passate le azioni (onQuantita/onPrezzo/onRimuovi), mostra anche i controlli per
@@ -57,7 +58,7 @@ export function CartaModal({
           </button>
           {carta?.immagine_url ? (
             // eslint-disable-next-line @next/next/no-img-element
-            <img src={carta.immagine_url} alt={nome} className="max-h-[300px] rounded-lg object-contain shadow-lg" />
+            <img src={imgSrc(carta.immagine_url)} alt={nome} className="max-h-[300px] rounded-lg object-contain shadow-lg" />
           ) : (
             <div className="py-16 text-6xl">🏴‍☠️</div>
           )}

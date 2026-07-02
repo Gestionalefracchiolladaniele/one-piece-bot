@@ -246,3 +246,15 @@ export function useClaupiece() {
 export function stelle(n: number | null): string {
   return '⭐'.repeat(Math.max(0, Math.min(5, n ?? 0)));
 }
+
+// URL immagine sicuro per il browser. Le immagini ufficiali One Piece bloccano il
+// cross-origin (CORP: same-site) → le facciamo passare dal nostro proxy /api/img,
+// così vengono servite dal nostro dominio e il browser le mostra. Gli altri URL
+// (es. foto manuali incollate dall'utente) restano invariati.
+export function imgSrc(url?: string | null): string {
+  if (!url) return '';
+  if (/(^https?:\/\/)?([a-z-]+\.)?onepiece-cardgame\.com\//i.test(url)) {
+    return `/api/img?u=${encodeURIComponent(url)}`;
+  }
+  return url;
+}

@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import type { CartaLive } from '@/lib/useClaupiece';
+import { imgSrc, type CartaLive } from '@/lib/useClaupiece';
 
 const PER_PAGINA = 10;
 
@@ -73,7 +73,7 @@ export function RisultatiRicerca({
             <span className="flex min-w-0 flex-1 items-center gap-2.5 text-on-card-mid">
               {card.immagine_url ? (
                 // eslint-disable-next-line @next/next/no-img-element
-                <img src={card.immagine_url} alt={card.nome} width={38} height={53} className="shrink-0 rounded object-cover" />
+                <img src={imgSrc(card.immagine_url)} alt={card.nome} width={38} height={53} className="shrink-0 rounded object-cover" />
               ) : null}
               <span className="min-w-0">
                 <strong className="block truncate text-on-card-high">{card.nome || card.codice}</strong>
