@@ -263,10 +263,10 @@ export function stelle(n: number | null): string {
   return '⭐'.repeat(Math.max(0, Math.min(5, n ?? 0)));
 }
 
-// Rarità One Piece TCG (come le etichetta tcgapi) per il filtro della ricerca online.
+// Rarità One Piece TCG (come le etichetta tcgapi/DB) per il filtro della ricerca.
+// Ordinate dalla più preziosa alla più comune (le rare interessano di più).
 export const RARITA_TCG = [
-  'Leader', 'Common', 'Uncommon', 'Rare', 'SuperRare', 'SecretRare',
-  'Special', 'TreasureRare', 'Promo',
+  'Leader', 'SecretRare', 'SuperRare', 'Special', 'TreasureRare', 'Rare', 'Uncommon', 'Common',
 ];
 
 // URL immagine sicuro per il browser. Le immagini ufficiali One Piece bloccano il

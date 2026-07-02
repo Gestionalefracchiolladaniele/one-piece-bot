@@ -7,7 +7,7 @@ import { CartaModal } from '@/components/CartaModal';
 import { RisultatiRicerca } from '@/components/RisultatiRicerca';
 import { InserisciManuale } from '@/components/InserisciManuale';
 import { Binder } from '@/components/Binder';
-import { RARITA_TCG } from '@/lib/useClaupiece';
+import { BarraRicerca } from '@/components/BarraRicerca';
 import type { VoceCollezione } from '@/lib/types';
 
 export default function CollezionePage() {
@@ -89,60 +89,23 @@ export default function CollezionePage() {
         </div>
       </section>
 
-      {/* Aggiungi alla collezione (ricerca live) */}
+      {/* Aggiungi alla collezione */}
       <section className="card mb-6 p-4 sm:p-5">
-        <h2 className="mb-1 font-display text-base text-on-card-high sm:text-lg">➕ Aggiungi una carta</h2>
-        <p className="mb-3 text-xs text-on-card-low">
-          Scrivi il <strong>nome</strong> e premi <strong>🔍 Cerca</strong>: cerca nel database
-          locale (gratis, istantaneo). Se qui non c’è, premi <strong>🌐 tcgapi</strong> per cercarla
-          online col prezzo (1 richiesta del limite giornaliero). Al click su “+ Colleziona”
-          prendiamo comunque il <strong>prezzo esatto</strong> di quella carta.
-        </p>
-        <div className="flex flex-wrap gap-2">
-          <input
-            className="field min-w-[160px] flex-1"
-            placeholder="Nome carta (es. Luffy, Zoro, Nami)…"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            onKeyDown={(e) => { if (e.key === 'Enter') cerca(); }}
-          />
-          {/* Bottone 1: ricerca nel DB locale (gratis) */}
-          <button className="btn btn-accent shrink-0" onClick={cerca} disabled={cercando || query.trim().length < 2}>
-            {cercando && !online ? '…' : '🔍 Cerca'}
-          </button>
-          {/* Bottone 2: ricerca online tcgapi (con prezzo). Separato per NON confondere
-              e per spendere le richieste solo quando serve davvero. */}
-          <button
-            className="btn shrink-0"
-            style={{ background: '#f0ecfa', color: 'var(--accent-strong)' }}
-            onClick={cercaWeb}
-            disabled={cercando || query.trim().length < 2}
-            title="Cerca online su tcgapi (usa 1 richiesta del limite giornaliero)"
-          >
-            {cercando && online ? '…' : '🌐 tcgapi'}
-          </button>
-        </div>
-        {/* Filtro rarità per la ricerca tcgapi: mira la ricerca online (es. solo Leader
-            o solo Alternate Art) per ottenere subito la variante giusta. */}
-        <details className="mt-2">
-          <summary className="cursor-pointer text-[11px] font-semibold text-[color:var(--accent-strong)]">
-            ⚙️ Filtra la ricerca tcgapi (rarità)
-          </summary>
-          <select
-            className="field mt-2 text-[13px]"
-            value={rarFiltro}
-            onChange={(e) => setRarFiltro(e.target.value)}
-          >
-            <option value="">Tutte le rarità</option>
-            {RARITA_TCG.map((r) => <option key={r} value={r}>{r}</option>)}
-          </select>
-          <p className="mt-1 text-[10px] text-on-card-low">
-            Vale solo per il bottone <strong>🌐 tcgapi</strong>. Utile per isolare Leader,
-            Alternate Art (Special) o le rare.
-          </p>
-        </details>
+        <h2 className="mb-3 font-display text-base text-on-card-high sm:text-lg">➕ Aggiungi una carta</h2>
+        <BarraRicerca
+          query={query}
+          onQuery={setQuery}
+          rarita={rarFiltro}
+          onRarita={setRarFiltro}
+          onCercaDb={cerca}
+          onCercaTcg={cercaWeb}
+          onManuale={() => setManuale(true)}
+          cercando={cercando}
+          fonteAttiva={cercando ? (online ? 'tcg' : 'db') : null}
+          placeholder="Nome carta (es. Luffy, Zoro, Nami)…"
+        />
         {cercato && risultati.length > 0 && (
-          <p className="mt-2 text-[11px] text-on-card-low">
+          <p className="mt-2.5 text-[11px] text-on-card-low">
             {online ? '🌐 Risultati da tcgapi (con prezzo).' : `🔍 ${risultati.length} risultati dal database locale.`}
           </p>
         )}
@@ -156,10 +119,6 @@ export default function CollezionePage() {
             </button>.
           </p>
         )}
-        {/* Inserimento manuale: sempre disponibile come alternativa alla ricerca */}
-        <button onClick={() => setManuale(true)} className="mt-2.5 text-[13px] font-semibold text-[color:var(--accent-strong)]">
-          ✍️ Inserisci una carta a mano
-        </button>
         <RisultatiRicerca
           carte={risultati}
           testoBottone="+ Colleziona"

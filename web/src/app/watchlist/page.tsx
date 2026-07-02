@@ -1,9 +1,10 @@
 'use client';
 
 import { useState } from 'react';
-import { useClaupiece, imgSrc, RARITA_TCG, type CartaLive } from '@/lib/useClaupiece';
+import { useClaupiece, imgSrc, type CartaLive } from '@/lib/useClaupiece';
 import { RisultatiRicerca } from '@/components/RisultatiRicerca';
 import { InserisciManuale } from '@/components/InserisciManuale';
+import { BarraRicerca } from '@/components/BarraRicerca';
 import type { Watch } from '@/lib/types';
 
 const REGOLE: { key: Watch['regola_tipo']; label: string }[] = [
@@ -84,54 +85,21 @@ export default function WatchlistPage() {
 
       {/* Aggiungi carta */}
       <section className="card mb-6 p-4 sm:p-5">
-        <h2 className="mb-1 font-display text-base text-on-card-high sm:text-lg">➕ Aggiungi una carta</h2>
-        <p className="mb-3 text-xs text-on-card-low">
-          Scrivi il <strong>nome</strong> e premi <strong>🔍 Cerca</strong>: cerca nel database
-          locale (gratis). Se qui non c’è, premi <strong>🌐 tcgapi</strong> per cercarla online
-          (1 richiesta). Il prezzo viene comunque preso al momento dell’aggiunta.
-        </p>
-        <div className="flex flex-wrap gap-2">
-          <input
-            className="field min-w-[160px] flex-1"
-            placeholder="Nome carta (es. Shanks, Luffy)…"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            onKeyDown={(e) => { if (e.key === 'Enter') cerca(); }}
-          />
-          {/* Bottone 1: DB locale (gratis) */}
-          <button className="btn btn-accent shrink-0" onClick={cerca} disabled={cercando || query.trim().length < 2}>
-            {cercando && !online ? '…' : '🔍 Cerca'}
-          </button>
-          {/* Bottone 2: online tcgapi (separato, per non confondere e spendere solo se serve) */}
-          <button
-            className="btn shrink-0"
-            style={{ background: '#f0ecfa', color: 'var(--accent-strong)' }}
-            onClick={cercaWeb}
-            disabled={cercando || query.trim().length < 2}
-            title="Cerca online su tcgapi (usa 1 richiesta del limite giornaliero)"
-          >
-            {cercando && online ? '…' : '🌐 tcgapi'}
-          </button>
-        </div>
-        {/* Filtro rarità per la ricerca tcgapi (mira la ricerca online). */}
-        <details className="mt-2">
-          <summary className="cursor-pointer text-[11px] font-semibold text-[color:var(--accent-strong)]">
-            ⚙️ Filtra la ricerca tcgapi (rarità)
-          </summary>
-          <select
-            className="field mt-2 text-[13px]"
-            value={rarFiltro}
-            onChange={(e) => setRarFiltro(e.target.value)}
-          >
-            <option value="">Tutte le rarità</option>
-            {RARITA_TCG.map((r) => <option key={r} value={r}>{r}</option>)}
-          </select>
-          <p className="mt-1 text-[10px] text-on-card-low">
-            Vale solo per il bottone <strong>🌐 tcgapi</strong>.
-          </p>
-        </details>
+        <h2 className="mb-3 font-display text-base text-on-card-high sm:text-lg">➕ Aggiungi una carta</h2>
+        <BarraRicerca
+          query={query}
+          onQuery={setQuery}
+          rarita={rarFiltro}
+          onRarita={setRarFiltro}
+          onCercaDb={cerca}
+          onCercaTcg={cercaWeb}
+          onManuale={() => setManuale(true)}
+          cercando={cercando}
+          fonteAttiva={cercando ? (online ? 'tcg' : 'db') : null}
+          placeholder="Nome carta (es. Shanks, Luffy)…"
+        />
         {cercato && risultati.length > 0 && (
-          <p className="mt-2 text-[11px] text-on-card-low">
+          <p className="mt-2.5 text-[11px] text-on-card-low">
             {online ? '🌐 Risultati da tcgapi (con prezzo).' : `🔍 ${risultati.length} risultati dal database locale.`}
           </p>
         )}
@@ -145,9 +113,6 @@ export default function WatchlistPage() {
             </button>.
           </p>
         )}
-        <button onClick={() => setManuale(true)} className="mt-2.5 text-[13px] font-semibold text-[color:var(--accent-strong)]">
-          ✍️ Inserisci una carta a mano
-        </button>
         <RisultatiRicerca
           carte={risultati}
           testoBottone="Aggiungi"
